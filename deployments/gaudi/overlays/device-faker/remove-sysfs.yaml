@@ -10,7 +10,7 @@ spec:
       - name: kubelet-plugin
         volumeMounts:
         - name: sysfs
-          mountPath: /sysfs
+          mountPath: /sys
           $patch: delete
       volumes:
       - name: sysfs

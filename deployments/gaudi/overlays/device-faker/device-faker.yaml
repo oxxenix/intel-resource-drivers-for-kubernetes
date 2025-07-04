@@ -16,6 +16,8 @@ spec:
           mountPath: /tmp/fake-root
       containers:
       - name: kubelet-plugin
+        image: intel/intel-gaudi-resource-driver:v0.5.1
+        command: ["/kubelet-gaudi-plugin", "-v", "5"]
         env:
         - name: SYSFS_ROOT
           value: "/fake-sysfs"
@@ -29,6 +31,8 @@ spec:
         - name: fake-root
           mountPath: /fake-cdi
           subPath: cdi
+        securityContext:
+          privileged: false
       volumes:
       - name: fake-root
         emptyDir: {}
