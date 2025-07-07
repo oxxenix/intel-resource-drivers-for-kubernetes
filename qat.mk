@@ -27,7 +27,7 @@ $(COMMON_SRC) \
 pkg/qat/device/*.go \
 pkg/qat/cdi/*.go
 
-QAT_LDFLAGS = ${LDFLAGS} -extldflags $(EXT_LDFLAGS) -X ${PKG}/pkg/version.driverVersion=${QAT_VERSION}
+QAT_LDFLAGS = ${LDFLAGS} -extldflags $(EXT_LDFLAGS) -X ${PKG}/pkg/version.version=${QAT_VERSION}
 
 .PHONY: qat
 qat: $(QAT_BINARIES)

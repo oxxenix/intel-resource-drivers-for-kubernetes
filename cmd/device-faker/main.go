@@ -30,6 +30,7 @@ import (
 	gaudiDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	gpuDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
 var (
@@ -37,7 +38,6 @@ var (
 		"gpu":   true,
 		"gaudi": true,
 	}
-	version = "v0.3.0"
 )
 
 func main() {
@@ -110,6 +110,8 @@ func newCommand() *cobra.Command {
 				return fmt.Errorf("error creating temp dirs: %v", err)
 			}
 
+			fmt.Println(cmd.Version)
+
 			switch deviceType {
 			case "gpu":
 				return handleGPUDevices(template, testDirs, realDevices, cleanup)
@@ -121,7 +123,7 @@ func newCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Version = version
+	cmd.Version = version.GetVersion() + " (git " + version.GetGitCommit() + "). Built " + version.GetBuildDate()
 	cmd.Flags().BoolP("version", "v", false, "Show the version of the binary")
 	cmd.Flags().BoolP("new-template", "n", false, "Create new template file for given accelerator")
 	cmd.Flags().StringP("template", "t", "", "Template file to populate devices from")

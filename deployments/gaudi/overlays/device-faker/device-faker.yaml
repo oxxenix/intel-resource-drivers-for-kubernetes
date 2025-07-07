@@ -13,7 +13,7 @@ spec:
         # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#termination-with-sidecars
         # which allows proper fake root cleanup.
         restartPolicy: Always
-        image: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-device-faker:v0.2.0
+        image: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-device-faker:latest
         imagePullPolicy: Always
         command: ["/device-faker", "gaudi", "-t", "/opt/templates/gaudi-template.json", "-r", "-d", "/tmp/fake-root", "-c"]
         volumeMounts:
@@ -30,6 +30,7 @@ spec:
         # `-m` is removed because there is no real HW and HLML lib.
         # `-v 5` is added for more verbose logging.
         command: ["/kubelet-gaudi-plugin", "-v", "5"]
+        image: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gaudi-resource-driver:latest
         env:
         - name: SYSFS_ROOT
           value: "/fake-sysfs"

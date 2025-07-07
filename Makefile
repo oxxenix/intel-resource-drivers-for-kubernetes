@@ -56,7 +56,7 @@ ifndef DOCKER
 	endif
 endif
 
-DEVICE_FAKER_VERSION ?= v0.2.0
+DEVICE_FAKER_VERSION ?= v0.4.0
 DEVICE_FAKER_IMAGE_NAME ?= intel-device-faker
 DEVICE_FAKER_IMAGE_VERSION ?= $(DEVICE_FAKER_VERSION)
 DEVICE_FAKER_IMAGE_TAG ?= $(REGISTRY)/$(DEVICE_FAKER_IMAGE_NAME):$(DEVICE_FAKER_IMAGE_VERSION)
@@ -82,7 +82,7 @@ bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
 
 bin/device-faker: cmd/device-faker/*.go
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS} -extldflags ${EXT_LDFLAGS}" \
+	  go build -a -ldflags "${LDFLAGS} -X ${PKG}/pkg/version.version=${DEVICE_FAKER_VERSION} -extldflags ${EXT_LDFLAGS}" \
 	  -mod vendor -o $@ ./cmd/device-faker
 
 device-faker: bin/device-faker
