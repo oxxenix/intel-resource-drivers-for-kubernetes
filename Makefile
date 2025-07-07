@@ -56,6 +56,10 @@ ifndef DOCKER
 	endif
 endif
 
+DEVICE_FAKER_VERSION ?= v0.2.0
+DEVICE_FAKER_IMAGE_NAME ?= intel-device-faker
+DEVICE_FAKER_IMAGE_VERSION ?= $(DEVICE_FAKER_VERSION)
+DEVICE_FAKER_IMAGE_TAG ?= $(REGISTRY)/$(DEVICE_FAKER_IMAGE_NAME):$(DEVICE_FAKER_IMAGE_VERSION)
 
 COMMON_SRC = \
 pkg/version/*.go
@@ -67,9 +71,8 @@ include $(CURDIR)/qat.mk
 .EXPORT_ALL_VARIABLES:
 
 
-.PHONY: build
+.PHONY: build device-faker device-faker-container-build
 build: gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker
-
 
 
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
@@ -82,6 +85,12 @@ bin/device-faker: cmd/device-faker/*.go
 	  go build -a -ldflags "${LDFLAGS} -extldflags ${EXT_LDFLAGS}" \
 	  -mod vendor -o $@ ./cmd/device-faker
 
+device-faker: bin/device-faker
+	@echo "bin/device-faker"
+
+device-faker-container-build:
+	$(DOCKER) build --pull -t $(DEVICE_FAKER_IMAGE_TAG) \
+	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.device-faker .
 
 .PHONY: branch-build
 # test that all commits in $GIT_BRANCH (default=current) build
@@ -92,7 +101,7 @@ branch-build:
 	git checkout $$current
 
 .PHONY: containers-build
-containers-build: gpu-container-build gaudi-container-build qat-container-build
+containers-build: gpu-container-build gaudi-container-build qat-container-build device-faker-container-build
 
 .PHONY: container-local
 container-local: container-build

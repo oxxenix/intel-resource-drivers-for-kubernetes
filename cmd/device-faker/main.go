@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -76,6 +78,8 @@ func newCommand() *cobra.Command {
 
 			realDevices := cmd.Flag("real-devices").Value.String() == "true"
 
+			cleanup := cmd.Flag("cleanup").Value.String() == "true"
+
 			newTemplate := cmd.Flag("new-template").Value.String() == "true"
 			if newTemplate {
 				return createNewTemplate(deviceType)
@@ -108,9 +112,9 @@ func newCommand() *cobra.Command {
 
 			switch deviceType {
 			case "gpu":
-				return handleGPUDevices(template, testDirs, realDevices)
+				return handleGPUDevices(template, testDirs, realDevices, cleanup)
 			case "gaudi":
-				return handleGaudiDevices(template, testDirs, realDevices)
+				return handleGaudiDevices(template, testDirs, realDevices, cleanup)
 			}
 
 			return nil
@@ -123,12 +127,13 @@ func newCommand() *cobra.Command {
 	cmd.Flags().StringP("template", "t", "", "Template file to populate devices from")
 	cmd.Flags().StringP("target-dir", "d", "", "Target directory, default is random /tmp/test-*")
 	cmd.Flags().BoolP("real-devices", "r", false, "Create real device files (requires root)")
+	cmd.Flags().BoolP("cleanup", "c", false, "Wait for SIGTERM, cleanup before exiting")
 	cmd.SetVersionTemplate("device-faker version: {{.Version}}\n")
 
 	return cmd
 }
 
-func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool) error {
+func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool, cleanup bool) error {
 	devices := make(gpuDevice.DevicesInfo)
 	devicesBytes, err := os.ReadFile(templateFilePath)
 	if err != nil {
@@ -152,10 +157,10 @@ func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, re
 	fmt.Printf("fake sysfs: %v\n", testDirs.SysfsRoot)
 	fmt.Printf("fake devfs: %v\n", testDirs.DevfsRoot)
 	fmt.Printf("fake CDI: %v\n", testDirs.CdiRoot)
-	return nil
+	return doCleanup(testDirs, cleanup)
 }
 
-func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool) error {
+func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool, cleanup bool) error {
 	devices := make(gaudiDevice.DevicesInfo)
 	devicesBytes, err := os.ReadFile(templateFilePath)
 	if err != nil {
@@ -179,7 +184,7 @@ func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, 
 	fmt.Printf("fake sysfs: %v\n", testDirs.SysfsRoot)
 	fmt.Printf("fake devfs: %v\n", testDirs.DevfsRoot)
 	fmt.Printf("fake CDI: %v\n", testDirs.CdiRoot)
-	return nil
+	return doCleanup(testDirs, cleanup)
 }
 
 func createNewTemplate(deviceType string) error {
@@ -251,5 +256,35 @@ func createNewTemplate(deviceType string) error {
 		fmt.Printf("Could not write new template file %v: %v", templateFilePath, err)
 	}
 	fmt.Printf("new template: %v\n", templateFilePath.Name())
+	return nil
+}
+
+func doCleanup(testDirs helpers.TestDirsType, cleanup bool) error {
+	if !cleanup {
+		return nil
+	}
+
+	fmt.Println("Waiting for SIGTERM to cleanup...")
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	sig := <-sigc
+
+	fmt.Printf("Received %v, cleaning up...\n", sig)
+
+	anyErr := false
+	// Do not cleanup the top level directory, it might be a mount point.
+	for _, dirname := range []string{testDirs.SysfsRoot, testDirs.DevfsRoot, testDirs.CdiRoot} {
+		if err := os.RemoveAll(dirname); err != nil {
+			fmt.Printf("Error cleaning up fake sysfs %v: %v\n", testDirs.TestRoot, err)
+			anyErr = true
+		}
+	}
+
+	if anyErr {
+		fmt.Println("Cleanup completed with errors.")
+		return fmt.Errorf("cleanup completed with errors")
+	}
+
+	fmt.Println("Cleanup completed successfully.")
 	return nil
 }
