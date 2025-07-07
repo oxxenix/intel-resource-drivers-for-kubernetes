@@ -20,8 +20,11 @@ spec:
         - name: fake-root
           mountPath: /tmp/fake-root
         securityContext:
-          privileged: true
-          runAsUser: 0
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+            add:  [ "MKNOD" ]
       containers:
       - name: kubelet-plugin
         # `-m` is removed because there is no real HW and HLML lib.
