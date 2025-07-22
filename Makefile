@@ -72,7 +72,7 @@ include $(CURDIR)/qat.mk
 
 
 .PHONY: build device-faker device-faker-container-build
-build: gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker
+build: gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker bin/goxpusmi
 
 
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
@@ -84,6 +84,11 @@ bin/device-faker: cmd/device-faker/*.go
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${LDFLAGS} -X ${PKG}/pkg/version.version=${DEVICE_FAKER_VERSION} -extldflags ${EXT_LDFLAGS}" \
 	  -mod vendor -o $@ ./cmd/device-faker
+
+bin/goxpusmi: cmd/goxpusmi/*.go pkg/goxpusmi/*.go
+	GOOS=linux GOARCH=${ARCH} \
+	  go build -a -ldflags "${LDFLAGS}" \
+	  -mod vendor -o $@ ./cmd/goxpusmi
 
 device-faker: bin/device-faker
 	@echo "bin/device-faker"
