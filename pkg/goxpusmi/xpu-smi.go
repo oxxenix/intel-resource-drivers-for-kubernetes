@@ -57,17 +57,17 @@ func errorString(ret C.xpum_result_t) error {
 	return fmt.Errorf("invalid HLML error return code %d", ret)
 }
 
-// Initialize initializes the xpusmi library
+// Initialize initializes the libxpum.
 func Initialize() error {
 	return errorString(C.xpumInit())
 }
 
-// Shutdown shutdowns the HLML library
+// Shutdown shuts down the libxpum.
 func Shutdown() error {
 	return errorString(C.xpumShutdown())
 }
 
-// DeviceCount gets number of Habana devices in the system
+// Discover returns a list of Intel GPU devices discovered by libxpum in the system.
 func DeviceCount() (uint, error) {
 	var devices [C.XPUM_MAX_NUM_DEVICES]C.xpum_device_basic_info
 	count := C.int(C.XPUM_MAX_NUM_DEVICES)
@@ -85,7 +85,43 @@ func DeviceCount() (uint, error) {
 		fmt.Printf("\tVendorName: %v\n", C.GoString(&devices[i].VendorName[0]))
 		fmt.Printf("\tfunctionType: %v\n", devices[i].functionType)
 		fmt.Printf("\tdrmDevice: %v\n", C.GoString(&devices[i].drmDevice[0]))
+
+		GetAndPrintDeviceProperties(devices[i].deviceId)
 	}
 
 	return uint(count), errorString(err)
+}
+
+func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t) {
+	var properties C.xpum_device_properties_t
+	err := C.xpumGetDeviceProperties(deviceId, &properties)
+	if err != C.XPUM_OK {
+		fmt.Printf("Failed to get device properties: %v\n", err)
+		return
+	}
+
+	propertyNames := map[string]C.xpum_device_property_name_t{
+		"Driver Version":                  C.XPUM_DEVICE_PROPERTY_DRIVER_VERSION,
+		"GFX Firmware Version":            C.XPUM_DEVICE_PROPERTY_GFX_FIRMWARE_VERSION,
+		"GFX Firmware Name":               C.XPUM_DEVICE_PROPERTY_GFX_FIRMWARE_NAME,
+		"GFX Data Firmware Name":          C.XPUM_DEVICE_PROPERTY_GFX_DATA_FIRMWARE_NAME,
+		"GFX Data Firmware Version":       C.XPUM_DEVICE_PROPERTY_GFX_DATA_FIRMWARE_VERSION,
+		"AMC Firmware Name":               C.XPUM_DEVICE_PROPERTY_AMC_FIRMWARE_NAME,
+		"AMC Firmware Version":            C.XPUM_DEVICE_PROPERTY_AMC_FIRMWARE_VERSION,
+		"Memory Max Allocatable Size (B)": C.XPUM_DEVICE_PROPERTY_MAX_MEM_ALLOC_SIZE_BYTE,
+		"Memory Physical Size (B)":        C.XPUM_DEVICE_PROPERTY_MEMORY_PHYSICAL_SIZE_BYTE,
+		"Memory Free (B)":                 C.XPUM_DEVICE_PROPERTY_MEMORY_FREE_SIZE_BYTE,
+		"Memory Bus Width (bit)":          C.XPUM_DEVICE_PROPERTY_MEMORY_BUS_WIDTH,
+		"Number of Tiles":                 C.XPUM_DEVICE_PROPERTY_NUMBER_OF_TILES,
+		"Number of EUs":                   C.XPUM_DEVICE_PROPERTY_NUMBER_OF_EUS,
+	}
+	// iterate over the properties and print them
+	for propertyName, propertyId := range propertyNames {
+		if C.int(propertyId) >= properties.propertyLen {
+			fmt.Printf("ERROR: Property %s not found in device properties. SKIPPING\n", propertyName)
+			continue
+		}
+		propertyItem := properties.properties[propertyId]
+		fmt.Printf("\t\t%s: %s\n", propertyName, C.GoString(&propertyItem.value[0]))
+	}
 }
