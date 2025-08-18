@@ -16,7 +16,7 @@ ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ARG NO_PROXY
 
-FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a as build
+FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a AS build
 ARG LOCAL_LICENSES
 WORKDIR /build
 COPY . .
@@ -42,7 +42,7 @@ cp /usr/share/doc/habanalabs-firmware-tools/* /install_root/licenses/habanalabs/
 cp bin/kubelet-gaudi-plugin /install_root/
 
 # Get libc and sources from Ubuntu24, libhlml needs GLIBC_2.38
-FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab as ubuntu
+FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab AS ubuntu
 RUN \
 cat /etc/apt/sources.list.d/ubuntu.sources && \
 sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources && \
