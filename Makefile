@@ -76,8 +76,8 @@ build: gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker bin/goxpusmi
 
 
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS} -extldflags $(EXT_LDFLAGS)" \
+	CGO_ENABLED=1 GOOS=linux GOARCH=${ARCH} \
+	  go build -a -ldflags "${LDFLAGS}" \
 	  -mod vendor -o $@ ./cmd/cdi-specs-generator
 
 bin/device-faker: cmd/device-faker/*.go

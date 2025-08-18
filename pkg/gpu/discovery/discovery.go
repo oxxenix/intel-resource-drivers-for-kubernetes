@@ -25,7 +25,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/goxpusmi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 
 	"k8s.io/klog/v2"
@@ -35,11 +37,19 @@ const (
 	initialMillicores = 1000
 )
 
+var (
+	xpuDeviceDetails = make(map[string]goxpusmi.XPUSMIDeviceDetails)
+)
+
 // Detect devices from sysfs.
-func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo {
+func DiscoverDevices(sysfsDir, namingStyle string, verbose bool) map[string]*device.DeviceInfo {
+	var err error
+	xpuDeviceDetails, err = goxpusmi.Discover(verbose)
+	if err != nil {
+		klog.Warningf("failed to discover devices with xpu-smi: %v", err)
+	}
 
 	sysfsDRMDir := path.Join(sysfsDir, device.SysfsDRMpath)
-
 	devices := make(map[string]*device.DeviceInfo)
 
 	for _, driverName := range []string{device.SysfsI915DriverName, device.SysfsXeDriverName} {
@@ -97,16 +107,14 @@ func processSysfsDriverDir(files []os.DirEntry, driverName string, sysfsDriverDi
 		newDeviceInfo.Model = deviceId
 		newDeviceInfo.SetModelInfo()
 
-		cardIdx, renderdIdx, err := DeduceCardAndRenderdIndexes(sysfsDeviceDir)
+		cardIdx, renderdIdx, err := sriov.DeduceCardAndRenderdIndexes(sysfsDeviceDir)
 		if err != nil {
 			continue
 		}
 
 		newDeviceInfo.CardIdx = cardIdx
 		newDeviceInfo.RenderdIdx = renderdIdx
-
-		drmGpuDir := path.Join(sysfsDRMDir, fmt.Sprintf("card%d", cardIdx))
-		newDeviceInfo.MemoryMiB = getLocalMemoryAmountMiB(drmGpuDir)
+		newDeviceInfo.MemoryMiB = getLocalMemoryAmountMiB(devicePCIAddress)
 
 		link := path.Join(sysfsDriverDir, devicePCIAddress)
 		newDeviceInfo.PCIRoot = helpers.DeterminePCIRoot(link)
@@ -225,69 +233,11 @@ func deduceVfIdx(sysfsDriverDir string, parentDBDF string, vfDBDF string) (uint6
 	return 0, fmt.Errorf("could not find PF %v symlink to VF %v", parentDBDF, vfDBDF)
 }
 
-// getTileCount reads the tile count.
-func getTileCount(drmGpuDir string) (numTiles uint64) {
-	filePath := path.Join(drmGpuDir, "gt/gt*")
-	files, _ := filepath.Glob(filePath)
-
-	if len(files) == 0 {
-		return 1
+// Return the amount of local memory the GPU has in MiB from libxpum discovery results.
+func getLocalMemoryAmountMiB(pciAddress string) uint64 {
+	if xpuDeviceDetails, found := xpuDeviceDetails[pciAddress]; found {
+		return xpuDeviceDetails.MemoryMiB
 	}
-	return uint64(len(files))
-}
-
-// FIXME: TODO: Xe does not publish DRM lmem_total_bytes
-// Return the amount of local memory GPU has, if any, otherwise shared memory presumed.
-func getLocalMemoryAmountMiB(drmGpuDir string) uint64 {
-	numTiles := getTileCount(drmGpuDir)
-	filePath := path.Join(drmGpuDir, "lmem_total_bytes")
-
-	klog.V(5).Infof("probing local memory at %v", filePath)
-	dat, err := os.ReadFile(filePath)
-	if err != nil {
-		klog.Warningf("no local memory detected, could not read file: %v", err)
-		return 0
-	}
-
-	totalLmemBytes, err := strconv.ParseUint(strings.TrimSpace(string(dat)), 10, 64)
-	if err != nil {
-		klog.Errorf("could not convert lmem_total_bytes: %v", err)
-		return 0
-	}
-
-	totalMiB := totalLmemBytes / (1024 * 1024)
-	klog.V(5).Infof("detected %d MiB local memory, %v tiles", totalMiB, numTiles)
-
-	return totalMiB
-}
-
-// deduceCardAndRenderdIndexes arg is device "<sysfs>/bus/pci/drivers/i915/<DBDF>/drm/" path.
-func DeduceCardAndRenderdIndexes(sysfsDeviceDir string) (uint64, uint64, error) {
-	var cardIdx uint64
-	var renderDidx uint64
-
-	// get card and renderD indexes
-	drmDir := path.Join(sysfsDeviceDir, "drm")
-	drmFiles, err := os.ReadDir(drmDir)
-	if err != nil { // ignore this device
-		return 0, 0, fmt.Errorf("cannot read device folder %v: %v", drmDir, err)
-	}
-
-	for _, drmFile := range drmFiles {
-		drmFileName := drmFile.Name()
-		if device.CardRegexp.MatchString(drmFileName) {
-			cardIdx, err = strconv.ParseUint(drmFileName[4:], 10, 64)
-			if err != nil {
-				return 0, 0, fmt.Errorf("failed to parse index of DRM card device '%v', skipping", drmFileName)
-			}
-		} else if device.RenderdRegexp.MatchString(drmFileName) {
-			renderDidx, err = strconv.ParseUint(drmFileName[7:], 10, 64)
-			if err != nil {
-				klog.Errorf("failed to parse renderDN device: %v, skipping", drmFileName)
-				continue
-			}
-		}
-	}
-
-	return cardIdx, renderDidx, nil
+	klog.Infof("missing libxpum info for device %v: ignoring local memory if any", pciAddress)
+	return 0
 }

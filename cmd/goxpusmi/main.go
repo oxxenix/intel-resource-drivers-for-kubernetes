@@ -43,12 +43,13 @@ func cobraRunFunc(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize xpu-smi: %w", err)
 	}
 
-	count, err := goxpusmi.DeviceCount()
+	// Do a verbose discovery.
+	devices, err := goxpusmi.Discover(true)
 	if err != nil {
 		return fmt.Errorf("failed to print device number: %w", err)
 	}
 
-	fmt.Printf("Number of devices: %d\n", count)
+	fmt.Printf("Number of discovered devices: %d\n", len(devices))
 
 	if err := goxpusmi.Shutdown(); err != nil {
 		return fmt.Errorf("failed to shutdown xpu-smi: %w", err)

@@ -53,7 +53,8 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
 
-	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle)
+	verboseDiscovery := klog.Logger.GetV(klog.FromContext(ctx)) >= 5
+	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery)
 	if len(detectedDevices) == 0 {
 		klog.Info("No supported devices detected")
 	}
