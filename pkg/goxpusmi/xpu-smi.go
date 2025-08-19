@@ -122,8 +122,8 @@ func Discover(verbose bool) (map[string]XPUSMIDeviceDetails, error) {
 		}
 
 		newDeviceDetails := XPUSMIDeviceDetails{
-			UUID:        C.GoString(&devices[i].uuid[0]),
-			DeviceId:    int(devices[i].deviceId),
+			UUID:        C.GoString(&device.uuid[0]),
+			DeviceId:    int(device.deviceId),
 			DeviceName:  C.GoString(&device.deviceName[0]),
 			PCIDeviceId: C.GoString(&device.PCIDeviceId[0]),
 			PCIAddress:  C.GoString(&device.PCIBDFAddress[0]),
