@@ -134,7 +134,7 @@ func Discover(verbose bool) (map[string]XPUSMIDeviceDetails, error) {
 		}
 		GetAndPrintDeviceProperties(device.deviceId, &newDeviceDetails, verbose)
 
-		deviceDetails[C.GoString(&devices[i].PCIBDFAddress[0])] = newDeviceDetails
+		deviceDetails[newDeviceDetails.PCIAddress] = newDeviceDetails
 	}
 
 	return deviceDetails, errorString(err)
