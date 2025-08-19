@@ -68,7 +68,7 @@ func newCommand() *cobra.Command {
 
 	cmd.Version = version
 	cmd.Flags().BoolP("version", "v", false, "Show the version of the binary")
-	cmd.SetVersionTemplate("Intel CDI Specs Generator Version: {{.Version}}\n")
+	cmd.SetVersionTemplate("Go bindings execution tool for goxpusmi. Version: {{.Version}}\n")
 
 	return cmd
 }

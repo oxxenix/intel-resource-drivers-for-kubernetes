@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sriov
+package drm
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
 
-// deduceCardAndRenderdIndexes arg is device "<sysfs>/bus/pci/drivers/i915/<DBDF>/drm/" path.
+// DeduceCardAndRenderdIndexes arg is device "<sysfs>/bus/pci/drivers/i915/<DBDF>/drm/" path.
 func DeduceCardAndRenderdIndexes(sysfsDeviceDir string) (uint64, uint64, error) {
 	var cardIdx uint64
 	var renderDidx uint64

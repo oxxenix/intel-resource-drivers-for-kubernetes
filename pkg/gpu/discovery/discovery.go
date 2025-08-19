@@ -27,7 +27,7 @@ import (
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/goxpusmi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/drm"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 
 	"k8s.io/klog/v2"
@@ -107,7 +107,7 @@ func processSysfsDriverDir(files []os.DirEntry, driverName string, sysfsDriverDi
 		newDeviceInfo.Model = deviceId
 		newDeviceInfo.SetModelInfo()
 
-		cardIdx, renderdIdx, err := sriov.DeduceCardAndRenderdIndexes(sysfsDeviceDir)
+		cardIdx, renderdIdx, err := drm.DeduceCardAndRenderdIndexes(sysfsDeviceDir)
 		if err != nil {
 			continue
 		}

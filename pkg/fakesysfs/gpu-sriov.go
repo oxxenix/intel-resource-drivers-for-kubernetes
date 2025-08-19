@@ -29,7 +29,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/drm"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
@@ -160,7 +160,7 @@ func addFakeVFsOnParent(numvfsFilePath string, devfsRoot string, numVFs uint64, 
 	model := strings.TrimSpace(string(modelBytes))
 
 	// construct parent's DRM VFs dir path
-	parentCardIdx, _, err := sriov.DeduceCardAndRenderdIndexes(sysfsI915DeviceDir)
+	parentCardIdx, _, err := drm.DeduceCardAndRenderdIndexes(sysfsI915DeviceDir)
 	if err != nil {
 		return fmt.Errorf("could not detect drm/cardX index in %v: %v", sysfsI915DeviceDir, err)
 	}
