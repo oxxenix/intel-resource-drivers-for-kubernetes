@@ -43,8 +43,13 @@ bin/alert-webhook: cmd/alert-webhook/*.go $(GPU_COMMON_SRC)
 .PHONY: gpu-container-build
 gpu-container-build: cleanall vendor
 	@echo "Building GPU resource drivers container..."
-	$(DOCKER) build --pull --platform="linux/$(ARCH)" -t $(GPU_IMAGE_TAG) \
-	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.gpu .
+	$(DOCKER) build --pull --platform="linux/$(ARCH)" \
+	-t $(GPU_IMAGE_TAG) \
+	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) \
+	--build-arg HTTP_PROXY=$(http_proxy) \
+	--build-arg HTTPS_PROXY=$(https_proxy) \
+	--build-arg NO_PROXY=$(no_proxy) \
+	-f Dockerfile.gpu .
 
 .PHONY: gpu-container-push
 gpu-container-push: gpu-container-build

@@ -43,11 +43,7 @@ var (
 
 // Detect devices from sysfs.
 func DiscoverDevices(sysfsDir, namingStyle string, verbose bool) map[string]*device.DeviceInfo {
-	var err error
-	xpuDeviceDetails, err = goxpusmi.Discover(verbose)
-	if err != nil {
-		klog.Warningf("failed to discover devices with xpu-smi: %v", err)
-	}
+	populateXpuDeviceDetails(verbose)
 
 	sysfsDRMDir := path.Join(sysfsDir, device.SysfsDRMpath)
 	devices := make(map[string]*device.DeviceInfo)
@@ -70,6 +66,27 @@ func DiscoverDevices(sysfsDir, namingStyle string, verbose bool) map[string]*dev
 	}
 
 	return devices
+}
+
+func populateXpuDeviceDetails(verbose bool) {
+	klog.V(5).Info("Initializing xpu-smi")
+	var err error
+	if err = goxpusmi.Initialize(); err != nil {
+		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", err)
+		return
+	}
+
+	klog.V(5).Info("Querying xpu-smi for devices information")
+	xpuDeviceDetails, err = goxpusmi.Discover(verbose)
+	if err != nil {
+		klog.Errorf("failed to discover devices with xpu-smi: %v", err)
+	} else {
+		klog.V(5).Infof("Discovered %d devices with xpu-smi: %+v", len(xpuDeviceDetails), xpuDeviceDetails)
+	}
+
+	if err := goxpusmi.Shutdown(); err != nil {
+		klog.Errorf("failed to shutdown xpu-smi: %v", err)
+	}
 }
 
 func processSysfsDriverDir(files []os.DirEntry, driverName string, sysfsDriverDir string, sysfsDRMDir string, namingStyle string) map[string]*device.DeviceInfo {
@@ -235,9 +252,10 @@ func deduceVfIdx(sysfsDriverDir string, parentDBDF string, vfDBDF string) (uint6
 
 // Return the amount of local memory the GPU has in MiB from libxpum discovery results.
 func getLocalMemoryAmountMiB(pciAddress string) uint64 {
-	if xpuDeviceDetails, found := xpuDeviceDetails[pciAddress]; found {
-		return xpuDeviceDetails.MemoryMiB
+	if deviceDetails, found := xpuDeviceDetails[pciAddress]; found {
+		return deviceDetails.MemoryMiB
 	}
-	klog.Infof("missing libxpum info for device %v: ignoring local memory if any", pciAddress)
+	klog.Warningf("missing libxpum info for device %v: ignoring local memory if any", pciAddress)
+	klog.V(5).Infof("xpuDeviceDetails: %+v", xpuDeviceDetails)
 	return 0
 }

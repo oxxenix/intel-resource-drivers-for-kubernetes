@@ -56,8 +56,7 @@ spec:
         #- name: devdri
         #  mountPath: "/tmp/test-0123456789/dev/dri"
         securityContext:
-          privileged: false
-          allowPrivilegeEscalation: false
+          privileged: true
           capabilities:
             drop: [ "ALL" ]
           readOnlyRootFilesystem: true

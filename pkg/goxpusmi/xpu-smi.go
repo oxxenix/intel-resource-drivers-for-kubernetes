@@ -29,6 +29,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 type XPUSMIDeviceDetails struct {
@@ -81,7 +82,7 @@ func errorString(ret C.xpum_result_t) error {
 		return ErrUnknownError
 	}
 
-	return fmt.Errorf("invalid HLML error return code %d", ret)
+	return fmt.Errorf("invalid libxpum error return code %d", ret)
 }
 
 // Initialize initializes the libxpum.
@@ -156,11 +157,17 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 			continue
 		}
 		propertyItem := properties.properties[propertyId]
+		propertyStr := C.GoString(&propertyItem.value[0])
 		if verbose {
-			fmt.Printf("\t\t%s: %s\n", propertyName, C.GoString(&propertyItem.value[0]))
+			fmt.Printf("\t\t%s: %s\n", propertyName, propertyStr)
 		}
 		if C.XPUM_DEVICE_PROPERTY_MEMORY_PHYSICAL_SIZE_BYTE == propertyId {
-			deviceDetails.MemoryMiB = uint64(propertyItem.value[0]) / 1024 / 1024
+			propertyUint, err := strconv.ParseUint(propertyStr, 10, 64)
+			if err != nil {
+				fmt.Printf("Failed to parse memory amount: %v\n", err)
+				continue
+			}
+			deviceDetails.MemoryMiB = propertyUint / 1024 / 1024
 		}
 	}
 }
