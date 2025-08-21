@@ -52,6 +52,7 @@ git config --global --add safe.directory /home/ubuntu/src
 
 ENV GOCACHE=/home/ubuntu/.cache/go-build
 ENV GOMODCACHE=/home/ubuntu/.cache/go-mod
+ENV PATH=/home/ubuntu/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 USER ubuntu
 WORKDIR /home/ubuntu
