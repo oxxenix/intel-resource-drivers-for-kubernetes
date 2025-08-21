@@ -207,7 +207,11 @@ yamllint:
 test-image: vendor
 	@echo "Building container image with fake HLML for Gaudi tests with user $(shell id -u):$(shell id -g)"
 	$(DOCKER) build \
-	--build-arg UID=$(shell id -u) --build-arg GID=$(shell id -g) \
+	--build-arg UID=$(shell id -u) \
+	--build-arg GID=$(shell id -g) \
+	--build-arg HTTP_PROXY=$(http_proxy) \
+	--build-arg HTTPS_PROXY=$(https_proxy) \
+	--build-arg NO_PROXY=$(no_proxy) \
 	--platform="linux/$(ARCH)" \
 	-t "$(TEST_IMAGE)" 	-f Dockerfile.gaudi-test .
 
