@@ -208,7 +208,7 @@ func createNewTemplate(deviceType string) error {
 				MemoryMiB:  1024,
 				Millicores: 1000,
 				DeviceType: "gpu",
-				Driver:    "i915",
+				Driver:     "i915",
 				MaxVFs:     8,
 				VFProfile:  "",
 			},

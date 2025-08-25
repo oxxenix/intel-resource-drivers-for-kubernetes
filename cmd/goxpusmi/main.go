@@ -61,14 +61,13 @@ func cobraRunFunc(cmd *cobra.Command, args []string) error {
 func newCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "goxpusmi",
-		Short: "Go xpu-smi try-out",
-		Long:  "Simple tool to test xpu-smi Go bindings",
+		Short: "Go xpu-smi tester",
+		Long:  "Test tool for xpu-smi Go bindings (goxpusmi)",
 		RunE:  cobraRunFunc,
 	}
-
 	cmd.Version = version
 	cmd.Flags().BoolP("version", "v", false, "Show the version of the binary")
-	cmd.SetVersionTemplate("Go bindings execution tool for goxpusmi. Version: {{.Version}}\n")
+	cmd.SetVersionTemplate("Test tool xpu-smi Go bindings (goxpusmi). Version: {{.Version}}\n")
 
 	return cmd
 }
