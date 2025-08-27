@@ -30,6 +30,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
 type XPUSMIDeviceDetails struct {
@@ -78,12 +80,15 @@ var (
 		"Fabric Port":    C.XPUM_HEALTH_FABRIC_PORT,
 		"Frequency":      C.XPUM_HEALTH_FREQUENCY,
 	}
-	healthStatuses = map[string]C.xpum_health_status_t{
-		"Unknown":  C.XPUM_HEALTH_STATUS_UNKNOWN,
-		"OK":       C.XPUM_HEALTH_STATUS_OK,
-		"Warning":  C.XPUM_HEALTH_STATUS_WARNING,
-		"Critical": C.XPUM_HEALTH_STATUS_CRITICAL,
+	healthStatuses = map[C.xpum_health_status_t]string{
+		C.XPUM_HEALTH_STATUS_UNKNOWN:  "Unknown",
+		C.XPUM_HEALTH_STATUS_OK:       "OK",
+		C.XPUM_HEALTH_STATUS_WARNING:  "Warning",
+		C.XPUM_HEALTH_STATUS_CRITICAL: "Critical",
 	}
+	// deviceHealthCache caches last known health status per device per health type.
+	// Outer key: device id, inner key: health type, value: last status.
+	deviceHealthCache = make(map[C.xpum_device_id_t]map[C.xpum_health_type_t]C.xpum_health_status_t)
 )
 
 func errorString(ret C.xpum_result_t) error {
@@ -187,39 +192,43 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 }
 
 // HealthCheck performs a health check on the libxpum library.
-func HealthCheck(devices map[string]XPUSMIDeviceDetails) (pushUIDs bool, uids map[string]string) {
-	uids = make(map[string]string)
+func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updated bool, updates map[string]map[int]int) {
+	updates = make(map[string]map[int]int)
+	updated = false
 	for _, device := range devices {
 		for healthTypeName, healthType := range healthTypes {
 			var healthData C.xpum_health_data_t
 			ret := C.xpumGetHealth(C.xpum_device_id_t(device.DeviceId), C.xpum_health_type_t(healthType), &healthData)
 			if ret != C.XPUM_OK {
 				fmt.Printf("Failed to get health for device %d, health type %d\n", device.DeviceId, healthType)
-			}
-			if healthData.status == C.XPUM_HEALTH_STATUS_UNKNOWN {
-				fmt.Printf("Device %d has no health status about '%s'\n", device.DeviceId, healthTypeName)
 				continue
 			}
-			if healthData.status != C.XPUM_HEALTH_STATUS_OK {
-				description := C.GoString(&healthData.description[0])
-				fmt.Printf("Device %d has unhealthy status. Health type '%s': %s, description: %s\n",
-					device.DeviceId, healthTypeName, getHealthStatusName(healthData.status), description)
-				uids[device.UUID] = description
-				continue
+			// Ensure per-device health status map exists.
+			_, ok := deviceHealthCache[healthData.deviceId]
+			if !ok {
+				deviceHealthCache[healthData.deviceId] = make(map[C.xpum_health_type_t]C.xpum_health_status_t)
 			}
-			fmt.Printf("Device %d's '%s' is healthy: %s\n", device.DeviceId, healthTypeName, C.GoString(&healthData.description[0]))
-		}
-	}
-	return len(uids) != 0, uids
-}
+			prevStatus := deviceHealthCache[healthData.deviceId][healthType]
+			currStatus := healthData.status
 
-func getHealthStatusName(status C.xpum_health_status_t) string {
-	statusStr := ""
-	for name, healthStatus := range healthStatuses {
-		if healthStatus == status {
-			statusStr = name
-			break
+			if prevStatus == currStatus {
+				// health status did not change, skip the following
+				continue
+			}
+
+			// update the changed health status
+			deviceHealthCache[healthData.deviceId][healthType] = currStatus
+			// Ensure updates entry for this device UUID exists.
+			deviceUID := helpers.DeviceUIDFromPCIinfo(device.PCIAddress, device.PCIDeviceId)
+			_, ok = updates[deviceUID]
+			if !ok {
+				updates[deviceUID] = make(map[int]int)
+			}
+			updates[deviceUID][int(healthType)] = int(currStatus)
+			updated = true
+			fmt.Printf("Device %d health update. Type='%s' prev='%s' curr='%s' description='%s'\n",
+				device.DeviceId, healthTypeName, healthStatuses[prevStatus], healthStatuses[currStatus], C.GoString(&healthData.description[0]))
 		}
 	}
-	return statusStr
+	return updated, updates
 }
