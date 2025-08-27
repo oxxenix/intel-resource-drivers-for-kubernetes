@@ -51,6 +51,8 @@ func cobraRunFunc(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Number of discovered devices: %d\n", len(devices))
 
+	goxpusmi.HealthCheck(devices)
+
 	if err := goxpusmi.Shutdown(); err != nil {
 		return fmt.Errorf("failed to shutdown xpu-smi: %w", err)
 	}

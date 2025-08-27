@@ -70,6 +70,20 @@ var (
 		"Number of Tiles":                 C.XPUM_DEVICE_PROPERTY_NUMBER_OF_TILES,
 		"Number of EUs":                   C.XPUM_DEVICE_PROPERTY_NUMBER_OF_EUS,
 	}
+	healthTypes = map[string]C.xpum_health_type_t{
+		"Core Thermal":   C.XPUM_HEALTH_CORE_THERMAL,
+		"Memory Thermal": C.XPUM_HEALTH_MEMORY_THERMAL,
+		"Power":          C.XPUM_HEALTH_POWER,
+		"Memory":         C.XPUM_HEALTH_MEMORY,
+		"Fabric Port":    C.XPUM_HEALTH_FABRIC_PORT,
+		"Frequency":      C.XPUM_HEALTH_FREQUENCY,
+	}
+	healthStatuses = map[string]C.xpum_health_status_t{
+		"Unknown":  C.XPUM_HEALTH_STATUS_UNKNOWN,
+		"OK":       C.XPUM_HEALTH_STATUS_OK,
+		"Warning":  C.XPUM_HEALTH_STATUS_WARNING,
+		"Critical": C.XPUM_HEALTH_STATUS_CRITICAL,
+	}
 )
 
 func errorString(ret C.xpum_result_t) error {
@@ -170,4 +184,42 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 			deviceDetails.MemoryMiB = propertyUint / 1024 / 1024
 		}
 	}
+}
+
+// HealthCheck performs a health check on the libxpum library.
+func HealthCheck(devices map[string]XPUSMIDeviceDetails) (pushUIDs bool, uids map[string]string) {
+	uids = make(map[string]string)
+	for _, device := range devices {
+		for healthTypeName, healthType := range healthTypes {
+			var healthData C.xpum_health_data_t
+			ret := C.xpumGetHealth(C.xpum_device_id_t(device.DeviceId), C.xpum_health_type_t(healthType), &healthData)
+			if ret != C.XPUM_OK {
+				fmt.Printf("Failed to get health for device %d, health type %d\n", device.DeviceId, healthType)
+			}
+			if healthData.status == C.XPUM_HEALTH_STATUS_UNKNOWN {
+				fmt.Printf("Device %d has no health status about '%s'\n", device.DeviceId, healthTypeName)
+				continue
+			}
+			if healthData.status != C.XPUM_HEALTH_STATUS_OK {
+				description := C.GoString(&healthData.description[0])
+				fmt.Printf("Device %d has unhealthy status. Health type '%s': %s, description: %s\n",
+					device.DeviceId, healthTypeName, getHealthStatusName(healthData.status), description)
+				uids[device.UUID] = description
+				continue
+			}
+			fmt.Printf("Device %d's '%s' is healthy: %s\n", device.DeviceId, healthTypeName, C.GoString(&healthData.description[0]))
+		}
+	}
+	return len(uids) != 0, uids
+}
+
+func getHealthStatusName(status C.xpum_health_status_t) string {
+	statusStr := ""
+	for name, healthStatus := range healthStatuses {
+		if healthStatus == status {
+			statusStr = name
+			break
+		}
+	}
+	return statusStr
 }
