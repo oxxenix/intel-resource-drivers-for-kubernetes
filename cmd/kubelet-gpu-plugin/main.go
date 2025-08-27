@@ -26,8 +26,17 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
+const (
+	HealthCareFlagDefault         = false
+	HealthcareIntervalFlagMin     = 1
+	HealthcareIntervalFlagMax     = 3600
+	HealthcareIntervalFlagDefault = 5
+)
+
 type GPUFlags struct {
-	Partitioning bool
+	Partitioning       bool
+	Healthcare         bool
+	HealthcareInterval int
 }
 
 const (
@@ -35,8 +44,28 @@ const (
 )
 
 func main() {
-	gpuFlags := GPUFlags{}
+	gpuFlags := GPUFlags{
+		Partitioning:       PartitioningDefault,
+		Healthcare:         HealthCareFlagDefault,
+		HealthcareInterval: HealthcareIntervalFlagDefault,
+	}
 	cliFlags := []cli.Flag{
+		&cli.BoolFlag{
+			Name:        "health-monitoring",
+			Aliases:     []string{"m"},
+			Usage:       "Actively monitor device health and update ResourceSlice. Requires privileges.",
+			Value:       HealthCareFlagDefault,
+			Destination: &gpuFlags.Healthcare,
+			EnvVars:     []string{"HEALTH_MONITORING"},
+		},
+		&cli.IntFlag{
+			Name:        "health-interval",
+			Aliases:     []string{"i"},
+			Usage:       fmt.Sprintf("Number of seconds between health-monitoring checks [%v ~ %v]", HealthcareIntervalFlagMin, HealthcareIntervalFlagMax),
+			Value:       HealthcareIntervalFlagDefault,
+			Destination: &gpuFlags.HealthcareInterval,
+			EnvVars:     []string{"HEALTH_INTERVAL"},
+		},
 		&cli.BoolFlag{
 			Name:        "partitioning-management",
 			Aliases:     []string{"p"},

@@ -124,6 +124,9 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 					"pciAddress": {
 						StringValue: &gpu.PCIAddress,
 					},
+					"healthy": {
+						BoolValue: &gpu.Healthy,
+					},
 				},
 				Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
 					"memory":     {Value: resource.MustParse(fmt.Sprintf("%vMi", gpu.MemoryMiB))},

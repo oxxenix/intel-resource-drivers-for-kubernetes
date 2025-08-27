@@ -147,6 +147,7 @@ type DeviceInfo struct {
 	Provisioned bool   `json:"provisioned"` // true if the SR-IOV VF is configured and enabled
 	Driver      string `json:"driver"`      // i915 | xe
 	PCIRoot     string `json:"pciroot"`     // PCI Root of the device
+	Healthy     bool   `json:"healthy"`     // Health status of the device
 }
 
 func (g DeviceInfo) CDIName() string {

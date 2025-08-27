@@ -39,10 +39,37 @@ type driver struct {
 	helper *kubeletplugin.Helper
 }
 
+func (d *driver) PublishResourceSlice(ctx context.Context) error {
+	state := nodeState{NodeState: d.state}
+	resources := state.GetResources()
+	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[state.NodeName].Slices[0].Devices))
+	klog.V(5).Infof("devices: %+v", resources.Pools[state.NodeName].Slices[0].Devices)
+	if err := d.helper.PublishResources(ctx, resources); err != nil {
+		return fmt.Errorf("error publishing resources: %v", err)
+	}
+
+	return nil
+}
+
+func getGPUFlags(someFlags any) (*GPUFlags, error) {
+	switch v := someFlags.(type) {
+	case *GPUFlags:
+		return v, nil
+	default:
+		return &GPUFlags{}, fmt.Errorf("could not parse driver flags as GPUFlags (got type: %T)", v)
+	}
+}
+
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
 	verboseDiscovery := klog.V(5).Enabled()
 	klog.Infof("Verbose mode: %v", verboseDiscovery)
+
+	gpuFlags, err := getGPUFlags(config.DriverFlags)
+	if err != nil {
+		klog.Errorf("FATAL: %v", err)
+		return nil, fmt.Errorf("FATAL: %v", err)
+	}
 
 	driver := &driver{
 		client: config.Coreclient,
@@ -61,7 +88,6 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	}
 
 	klog.V(3).Info("Creating new NodeState")
-	var err error
 	driver.state, err = newNodeState(detectedDevices, config.CommonFlags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
@@ -92,6 +118,12 @@ PluginDataDirectoryPath: %v`,
 	resources := state.GetResources()
 	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[state.NodeName].Slices[0].Devices))
 	klog.V(5).Infof("devices: %+v", resources.Pools[state.NodeName].Slices[0].Devices)
+
+	if gpuFlags.Healthcare {
+		// startHealthMonitor listens for unhealthy UIDs, has to run in a routine.
+		go driver.startHealthMonitor(ctx, gpuFlags.HealthcareInterval)
+	}
+
 	if err := helper.PublishResources(ctx, resources); err != nil {
 		return nil, fmt.Errorf("error publishing resources: %v", err)
 	}

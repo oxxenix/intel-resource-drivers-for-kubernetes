@@ -72,7 +72,8 @@ func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 			KubeletPluginDir:          testDirs.KubeletPluginDir,
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
-		Coreclient: kubefake.NewSimpleClientset(),
+		Coreclient:  kubefake.NewSimpleClientset(),
+		DriverFlags: &GPUFlags{}, // ensure correct type to avoid nil type assertion failure
 	}
 
 	if err := os.MkdirAll(config.CommonFlags.KubeletPluginDir, 0755); err != nil {
