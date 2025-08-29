@@ -39,15 +39,22 @@ cp bin/kubelet-gpu-plugin /install_root/
 FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab AS ubuntu
 RUN \
 export http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} no_proxy=${NO_PROXY} && \
+sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources && \
 apt-get update && \
 apt-get install -y make gcc wget software-properties-common python3-launchpadlib git && \
-add-apt-repository -y ppa:kobuk-team/intel-graphics && \
+add-apt-repository -s -y ppa:kobuk-team/intel-graphics && \
 apt-get update && \
-apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-opencl-icd intel-gsc && \
-wget -qO /tmp/xpu-smi.deb https://github.com/intel/xpumanager/releases/download/V1.3.1/xpu-smi_1.3.1_20250724.061629.60921e5e_u24.04_amd64.deb && \
-apt-get install -y /tmp/xpu-smi.deb && \
-rm /tmp/xpu-smi.deb && \
-unset http_proxy https_proxy no_proxy
+apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-opencl-icd intel-gsc xpu-smi && \
+echo 'export PATH=/home/ubuntu/go/bin:$PATH' >> /home/ubuntu/.bashrc && \
+mkdir /tmp/src && \
+cd /tmp/src && \
+apt-get source --download-only glibc intel-gsc libcap2 libudev1 libze1 xpu-smi libigdgmm12 libstdc++6 libze-intel-gpu1 && \
+unset http_proxy https_proxy no_proxy && \
+mkdir /licenses && \
+for pkg in libc6 intel-gsc libcap2 libudev1 libze1 libigdgmm12 libstdc++6 libze-intel-gpu1; do \
+    mkdir -p /licenses/$pkg; \
+    cp /usr/share/doc/$pkg/copyright /licenses/$pkg/; \
+done
 
 FROM scratch
 WORKDIR /
@@ -55,7 +62,7 @@ LABEL description="Intel GPU resource driver for Kubernetes"
 
 COPY --from=build /install_root /
 COPY --from=build /usr/lib/x86_64-linux-gnu/libxpum.so /usr/lib/x86_64-linux-gnu/libxpum.so
-COPY --from=build /usr/lib/x86_64-linux-gnu/libxpum.so.1 /usr/lib/x86_64-linux-gnu/libxpum.so.1
+COPY --from=ubuntu /licenses /licenses
 COPY --from=ubuntu /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6
 COPY --from=ubuntu /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6
