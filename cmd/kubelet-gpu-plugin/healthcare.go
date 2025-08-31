@@ -76,7 +76,8 @@ func (d *driver) updateHealth(ctx context.Context, updatedDevice updatedDeviceIn
 	isHealthy := true
 	for healthType, status := range updatedDevice.status {
 		d.updateTaintRule(ctx, updatedDevice.uid, healthType, status)
-		isHealthy = isHealthy && (status != CRITICAL)
+		_, _, health, _ := statusNameTaintHealthEffect(status)
+		isHealthy = isHealthy && health
 	}
 	foundDevice.Healthy = isHealthy
 
@@ -112,7 +113,8 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int
 
 // updateTaintRule updates a DeviceTaintRule for a device whose health status has changed.
 func (d *driver) updateTaintRule(ctx context.Context, updatedDeviceUID string, healthType, status int) {
-	if status == OK || status == UNKNOWN {
+	taintValue, taint, _, taintEffect := statusNameTaintHealthEffect(status)
+	if !taint {
 		d.deleteTaintRule(ctx, updatedDeviceUID, healthType)
 		return
 	}
@@ -127,7 +129,6 @@ func (d *driver) updateTaintRule(ctx context.Context, updatedDeviceUID string, h
 
 	// Build taint attributes.
 	taintKey := taintKeyForHealthType(driverName, healthType)
-	taintValue, taintEffect := taintValueEffectForStatus(status)
 
 	devTaintRule := resourceapi.DeviceTaintRule{
 		ObjectMeta: metav1.ObjectMeta{
@@ -203,16 +204,19 @@ func taintKeyForHealthType(driver string, healthType int) string {
 	return fmt.Sprintf("%s/%s", driver, suffix)
 }
 
-// taintValueEffectForStatus returns the taint value and effect for a given health status.
-// Assumes status is not OK/UNKNOWN (these are filtered earlier).
-func taintValueEffectForStatus(status int) (string, resourceapi.DeviceTaintEffect) {
+// statusNameTaintHealthEffect returns the name, taint, health and effect info based on status value
+func statusNameTaintHealthEffect(status int) (name string, taint bool, health bool, effect resourceapi.DeviceTaintEffect) {
 	switch status {
 	case CRITICAL:
-		return "Critical", resourceapi.DeviceTaintEffectNoExecute
+		return "Critical", true, false, resourceapi.DeviceTaintEffectNoExecute
 	case WARNING:
-		return "Warning", resourceapi.DeviceTaintEffectNoSchedule
+		return "Warning", true, true, resourceapi.DeviceTaintEffectNoSchedule
+	case OK:
+		return "OK", false, true, ""
+	case UNKNOWN:
+		return "Unknown", false, true, ""
 	default:
-		// Fallback – should not normally happen.
-		return "Unspecified", resourceapi.DeviceTaintEffectNoExecute
+		// something else than status value.
+		panic("invalid status value")
 	}
 }
