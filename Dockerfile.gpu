@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a AS build
 ARG LOCAL_LICENSES
+ARG http_proxy
+ARG https_proxy
+ARG no_proxy
+
+FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a AS build
 WORKDIR /build
 COPY . .
 
 # Add xpu-smi shared library
 RUN \
-export http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} no_proxy=${NO_PROXY} && \
 wget -qO /tmp/xpu-smi.deb https://github.com/intel/xpumanager/releases/download/V1.3.1/xpu-smi_1.3.1_20250724.061629.60921e5e_u24.04_amd64.deb && \
 dpkg -i --ignore-depends=level-zero,intel-gsc,libze-intel-gpu1 /tmp/xpu-smi.deb && \
-rm /tmp/xpu-smi.deb && \
-unset http_proxy https_proxy no_proxy
-
+rm /tmp/xpu-smi.deb
 
 # Build GPU DRA driver
 RUN make gpu && \
@@ -37,32 +38,37 @@ cp bin/kubelet-gpu-plugin /install_root/
 
 # Prepare dependencies
 FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab AS ubuntu
+
 RUN \
-export http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} no_proxy=${NO_PROXY} && \
 sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources && \
 apt-get update && \
-apt-get install -y make gcc wget software-properties-common python3-launchpadlib git && \
+apt-get install -y software-properties-common python3-launchpadlib
+
+RUN \
 add-apt-repository -s -y ppa:kobuk-team/intel-graphics && \
 apt-get update && \
-apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-opencl-icd intel-gsc xpu-smi && \
-echo 'export PATH=/home/ubuntu/go/bin:$PATH' >> /home/ubuntu/.bashrc && \
+apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-gsc xpu-smi
+
+RUN \
 mkdir /tmp/src && \
 cd /tmp/src && \
-apt-get source --download-only glibc intel-gsc libcap2 libudev1 libze1 xpu-smi libigdgmm12 libstdc++6 libze-intel-gpu1 && \
-unset http_proxy https_proxy no_proxy && \
+apt-get source --download-only dash glibc libcap2 libudev1 libstdc++6 && \
 mkdir /licenses && \
-for pkg in libc6 intel-gsc libcap2 libudev1 libze1 libigdgmm12 libstdc++6 libze-intel-gpu1; do \
+for pkg in dash libc6 intel-gsc libcap2 libudev1 libze1 libigdgmm12 libstdc++6 libze-intel-gpu1; do \
     mkdir -p /licenses/$pkg; \
     cp /usr/share/doc/$pkg/copyright /licenses/$pkg/; \
-done
+done && \
+if grep -q /common-licenses/ /licenses/*/copyright; then \
+    cp -r /usr/share/common-licenses/ /licenses/; \
+fi
 
 FROM scratch
 WORKDIR /
 LABEL description="Intel GPU resource driver for Kubernetes"
 
+# /bin/sh is used by xpu-smi library.
 COPY --from=build /install_root /
-COPY --from=build /usr/lib/x86_64-linux-gnu/libxpum.so /usr/lib/x86_64-linux-gnu/libxpum.so
-COPY --from=ubuntu /licenses /licenses
+COPY --from=build /usr/lib/x86_64-linux-gnu/libxpum.so.1 /usr/lib/x86_64-linux-gnu/libxpum.so.1
 COPY --from=ubuntu /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6
 COPY --from=ubuntu /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6
@@ -76,5 +82,7 @@ COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linu
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
 COPY --from=ubuntu /usr/lib/x86_64-linux-gnu/libze_intel_gpu.so.1 /usr/lib/x86_64-linux-gnu/libze_intel_gpu.so.1
 COPY --from=ubuntu /lib/x86_64-linux-gnu/libigdgmm.so.12 /lib/x86_64-linux-gnu/libigdgmm.so.12
-
+COPY --from=ubuntu /bin/sh /bin/sh
+COPY --from=ubuntu /licenses /licenses
+COPY --from=ubuntu /tmp/src /src
 CMD ["kubelet-gpu-plugin"]

@@ -46,9 +46,9 @@ gpu-container-build: cleanall vendor
 	$(DOCKER) build --pull --platform="linux/$(ARCH)" \
 	-t $(GPU_IMAGE_TAG) \
 	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) \
-	--build-arg HTTP_PROXY=$(http_proxy) \
-	--build-arg HTTPS_PROXY=$(https_proxy) \
-	--build-arg NO_PROXY=$(no_proxy) \
+	--build-arg http_proxy=$(http_proxy) \
+	--build-arg https_proxy=$(https_proxy) \
+	--build-arg no_proxy=$(no_proxy) \
 	-f Dockerfile.gpu .
 
 .PHONY: gpu-container-push
