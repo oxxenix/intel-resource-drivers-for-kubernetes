@@ -27,6 +27,7 @@ import (
 )
 
 const (
+	PartitioningDefault           = false
 	HealthCareFlagDefault         = false
 	HealthcareIntervalFlagMin     = 1
 	HealthcareIntervalFlagMax     = 3600
@@ -38,10 +39,6 @@ type GPUFlags struct {
 	Healthcare         bool
 	HealthcareInterval int
 }
-
-const (
-	PartitioningDefault = false
-)
 
 func main() {
 	gpuFlags := GPUFlags{

@@ -67,8 +67,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 
 	gpuFlags, err := getGPUFlags(config.DriverFlags)
 	if err != nil {
-		klog.Errorf("FATAL: %v", err)
-		return nil, fmt.Errorf("FATAL: %v", err)
+		return nil, fmt.Errorf("get GPU flags: %w", err)
 	}
 
 	driver := &driver{

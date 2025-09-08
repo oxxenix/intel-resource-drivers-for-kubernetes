@@ -169,7 +169,7 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 		return
 	}
 
-	// iterate over the properties and print them
+	// Iterate over the properties and print them.
 	for propertyName, propertyId := range propertyNames {
 		if C.int(propertyId) >= properties.propertyLen {
 			fmt.Printf("ERROR: Property %s not found in device properties. SKIPPING\n", propertyName)
@@ -211,11 +211,11 @@ func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updates map[string]map
 			currStatus := healthData.status
 
 			if prevStatus == currStatus {
-				// health status did not change, skip the following
+				// Health status did not change; skip the following.
 				continue
 			}
 
-			// update the changed health status
+			// Update the changed health status.
 			deviceHealthCache[healthData.deviceId][healthType] = currStatus
 			// Ensure updates entry for this device UUID exists.
 			deviceUID := helpers.DeviceUIDFromPCIinfo(device.PCIAddress, device.PCIDeviceId)

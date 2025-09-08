@@ -43,7 +43,7 @@ func (d *driver) updateHealth(ctx context.Context, updatedDevice updatedDeviceIn
 	allocatable := d.state.Allocatable.(map[string]*device.DeviceInfo)
 	foundDevice, found := allocatable[updatedDevice.uid]
 	if !found {
-		klog.Errorf("could not find device with UID %v", updatedDevice.uid)
+		klog.Errorf("could not find allocatable device with UID %v", updatedDevice.uid)
 		return
 	}
 
