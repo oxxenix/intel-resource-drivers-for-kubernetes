@@ -192,9 +192,8 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 }
 
 // HealthCheck performs a health check on the libxpum library.
-func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updated bool, updates map[string]map[string]string) {
+func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updates map[string]map[string]string) {
 	updates = make(map[string]map[string]string)
-	updated = false
 	for _, device := range devices {
 		for healthTypeName, healthType := range healthTypes {
 			var healthData C.xpum_health_data_t
@@ -225,10 +224,9 @@ func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updated bool, updates 
 				updates[deviceUID] = make(map[string]string)
 			}
 			updates[deviceUID][healthTypeName] = healthStatuses[currStatus]
-			updated = true
 			fmt.Printf("Device %d health update. Type='%s' prev='%s' curr='%s' description='%s'\n",
 				device.DeviceId, healthTypeName, healthStatuses[prevStatus], healthStatuses[currStatus], C.GoString(&healthData.description[0]))
 		}
 	}
-	return updated, updates
+	return updates
 }

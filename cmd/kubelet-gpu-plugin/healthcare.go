@@ -80,7 +80,7 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int
 		case <-ctx.Done():
 			return
 		case <-healthCheckInterval.C:
-			if updated, updates := goxpusmi.HealthCheck(devices); updated {
+			if updates := goxpusmi.HealthCheck(devices); len(updates) > 0 {
 				for uid, status := range updates {
 					idsChan <- updatedDeviceInfo{uid: uid, status: status}
 				}
