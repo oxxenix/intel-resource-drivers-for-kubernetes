@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"testing"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
@@ -366,7 +367,7 @@ func TestDiscoverDevices(t *testing.T) {
 					t.Errorf("expected device %v not found", name)
 					continue
 				}
-				if *actualDevice != *expectedDevice {
+				if !reflect.DeepEqual(actualDevice, expectedDevice) {
 					t.Errorf("device %s mismatch: expected %+v, got %+v", name, expectedDevice, actualDevice)
 				}
 			}
