@@ -73,12 +73,12 @@ var (
 		"Number of EUs":                   C.XPUM_DEVICE_PROPERTY_NUMBER_OF_EUS,
 	}
 	healthTypes = map[string]C.xpum_health_type_t{
-		"Core Thermal":   C.XPUM_HEALTH_CORE_THERMAL,
-		"Memory Thermal": C.XPUM_HEALTH_MEMORY_THERMAL,
-		"Power":          C.XPUM_HEALTH_POWER,
-		"Memory":         C.XPUM_HEALTH_MEMORY,
-		"Fabric Port":    C.XPUM_HEALTH_FABRIC_PORT,
-		"Frequency":      C.XPUM_HEALTH_FREQUENCY,
+		"CoreThermal":   C.XPUM_HEALTH_CORE_THERMAL,
+		"MemoryThermal": C.XPUM_HEALTH_MEMORY_THERMAL,
+		"Power":         C.XPUM_HEALTH_POWER,
+		"Memory":        C.XPUM_HEALTH_MEMORY,
+		"FabricPort":    C.XPUM_HEALTH_FABRIC_PORT,
+		"Frequency":     C.XPUM_HEALTH_FREQUENCY,
 	}
 	healthStatuses = map[C.xpum_health_status_t]string{
 		C.XPUM_HEALTH_STATUS_UNKNOWN:  "Unknown",
@@ -191,21 +191,29 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 	}
 }
 
-// HealthCheck performs a health check on the libxpum library.
+// HealthCheck performs a health check using libxpum library, updates an internal per-device health cache,
+// and returns only changed health type statuses since the previous call (map[deviceUID]map[healthType]status).
+// An empty map means no changes.
 func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updates map[string]map[string]string) {
 	updates = make(map[string]map[string]string)
 	for _, device := range devices {
+		// If this device is seen for the first time, initialize baseline health
+		// statuses to OK for every health type. This prevents emitting a wave of
+		// "UNKNOWN -> OK" transitions on startup when everything is healthy.
+		devId := C.xpum_device_id_t(device.DeviceId)
+		if _, exists := deviceHealthCache[devId]; !exists {
+			baseline := make(map[C.xpum_health_type_t]C.xpum_health_status_t, len(healthTypes))
+			for _, healthType := range healthTypes {
+				baseline[healthType] = C.XPUM_HEALTH_STATUS_OK
+			}
+			deviceHealthCache[devId] = baseline
+		}
 		for healthTypeName, healthType := range healthTypes {
 			var healthData C.xpum_health_data_t
 			ret := C.xpumGetHealth(C.xpum_device_id_t(device.DeviceId), C.xpum_health_type_t(healthType), &healthData)
 			if ret != C.XPUM_OK {
 				fmt.Printf("Failed to get health for device %d, health type %d\n", device.DeviceId, healthType)
 				continue
-			}
-			// Ensure per-device health status map exists.
-			_, ok := deviceHealthCache[healthData.deviceId]
-			if !ok {
-				deviceHealthCache[healthData.deviceId] = make(map[C.xpum_health_type_t]C.xpum_health_status_t)
 			}
 			prevStatus := deviceHealthCache[healthData.deviceId][healthType]
 			currStatus := healthData.status
@@ -219,8 +227,7 @@ func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updates map[string]map
 			deviceHealthCache[healthData.deviceId][healthType] = currStatus
 			// Ensure updates entry for this device UUID exists.
 			deviceUID := helpers.DeviceUIDFromPCIinfo(device.PCIAddress, device.PCIDeviceId)
-			_, ok = updates[deviceUID]
-			if !ok {
+			if _, ok := updates[deviceUID]; !ok {
 				updates[deviceUID] = make(map[string]string)
 			}
 			updates[deviceUID][healthTypeName] = healthStatuses[currStatus]
