@@ -192,7 +192,7 @@ func TestDeleteDeviceAndWrite(t *testing.T) {
 				{
 					Spec: &cdiSpecs.Spec{
 						Kind:    device.CDIKind,
-						Version: "0.6.0",
+						Version: "1.0.0",
 						Devices: []cdiSpecs.Device{{
 							Name: "device1",
 							ContainerEdits: cdiSpecs.ContainerEdits{
@@ -211,7 +211,7 @@ func TestDeleteDeviceAndWrite(t *testing.T) {
 				{
 					Spec: &cdiSpecs.Spec{
 						Kind:    device.CDIKind,
-						Version: "0.6.0",
+						Version: "1.0.0",
 						Devices: []cdiSpecs.Device{{
 							Name: "device1",
 							ContainerEdits: cdiSpecs.ContainerEdits{
@@ -230,7 +230,7 @@ func TestDeleteDeviceAndWrite(t *testing.T) {
 				{
 					Spec: &cdiSpecs.Spec{
 						Kind:    device.CDIKind,
-						Version: "0.6.0",
+						Version: "1.0.0",
 						Devices: []cdiSpecs.Device{},
 					},
 				},

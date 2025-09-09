@@ -143,6 +143,15 @@ func writeSpec(cdiCache *cdiapi.Cache, spec *cdiSpecs.Spec, specName string) err
 	}
 	spec.Version = cdiVersion
 
+	if len(spec.Devices) == 0 {
+		klog.V(5).Infof("No devices in spec %v, deleting it", specName)
+		err = cdiCache.RemoveSpec(specName)
+		if err != nil {
+			return fmt.Errorf("failed to remove empty CDI spec %v: %v", specName, err)
+		}
+		return nil
+	}
+
 	klog.V(5).Infof("Writing spec %v", specName)
 	err = cdiCache.WriteSpec(spec, specName)
 	if err != nil {
