@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"path"
 
-	resourceapi "k8s.io/api/resource/v1beta1"
+	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/types"
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
@@ -196,4 +196,9 @@ func (d *driver) PublishResourceSlice(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (d *driver) HandleError(ctx context.Context, err error, message string) {
+	// TODO: FIXME: error is ignored ATM, handle it properly.
+	klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error")
 }

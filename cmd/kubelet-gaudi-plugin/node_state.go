@@ -22,7 +22,7 @@ import (
 	"path"
 	"time"
 
-	resourcev1 "k8s.io/api/resource/v1beta1"
+	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
 	"k8s.io/klog/v2"
@@ -112,24 +112,21 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 	for gaudiUID, gaudi := range allocatableDevices {
 		newDevice := resourcev1.Device{
 			Name: gaudiUID,
-			Basic: &resourcev1.BasicDevice{
-				Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
-					"model": {
-						StringValue: &gaudi.ModelName,
-					},
-					"pciRoot": {
-						StringValue: &gaudi.PCIRoot,
-					},
-					"serial": {
-						StringValue: &gaudi.Serial,
-					},
-					"healthy": {
-						BoolValue: &gaudi.Healthy,
-					},
+			Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
+				"model": {
+					StringValue: &gaudi.ModelName,
+				},
+				"pciRoot": {
+					StringValue: &gaudi.PCIRoot,
+				},
+				"serial": {
+					StringValue: &gaudi.Serial,
+				},
+				"healthy": {
+					BoolValue: &gaudi.Healthy,
 				},
 			},
 		}
-
 		devices = append(devices, newDevice)
 	}
 

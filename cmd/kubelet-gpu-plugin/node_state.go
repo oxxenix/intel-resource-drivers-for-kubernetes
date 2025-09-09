@@ -23,7 +23,7 @@ import (
 	"time"
 
 	inf "gopkg.in/inf.v0"
-	resourcev1 "k8s.io/api/resource/v1beta1"
+	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
@@ -102,37 +102,35 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 		sriovSupported := gpu.MaxVFs > 0
 		newDevice := resourcev1.Device{
 			Name: gpuUID,
-			Basic: &resourcev1.BasicDevice{
-				Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
-					"model": {
-						StringValue: &gpu.ModelName,
-					},
-					"family": {
-						StringValue: &gpu.FamilyName,
-					},
-					"driver": {
-						StringValue: &gpu.Driver,
-					},
-					"sriov": {
-						BoolValue: &sriovSupported,
-					},
-					"pciRoot": {
-						StringValue: &gpu.PCIRoot,
-					},
-					"pciId": {
-						StringValue: &gpu.Model,
-					},
-					"pciAddress": {
-						StringValue: &gpu.PCIAddress,
-					},
-					"healthy": {
-						BoolValue: &gpu.Healthy,
-					},
+			Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
+				"model": {
+					StringValue: &gpu.ModelName,
 				},
-				Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
-					"memory":     {Value: resource.MustParse(fmt.Sprintf("%vMi", gpu.MemoryMiB))},
-					"millicores": {Value: *resource.NewDecimalQuantity(*inf.NewDec(int64(1000), inf.Scale(0)), resource.DecimalSI)},
+				"family": {
+					StringValue: &gpu.FamilyName,
 				},
+				"driver": {
+					StringValue: &gpu.Driver,
+				},
+				"sriov": {
+					BoolValue: &sriovSupported,
+				},
+				"pciRoot": {
+					StringValue: &gpu.PCIRoot,
+				},
+				"pciId": {
+					StringValue: &gpu.Model,
+				},
+				"pciAddress": {
+					StringValue: &gpu.PCIAddress,
+				},
+				"healthy": {
+					BoolValue: &gpu.Healthy,
+				},
+			},
+			Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
+				"memory":     {Value: resource.MustParse(fmt.Sprintf("%vMi", gpu.MemoryMiB))},
+				"millicores": {Value: *resource.NewDecimalQuantity(*inf.NewDec(int64(1000), inf.Scale(0)), resource.DecimalSI)},
 			},
 		}
 		// FIXME: TODO: K8s 1.33-1.34 only supports plain taint without description.
@@ -144,7 +142,7 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 			key = strings.ReplaceAll(key, "[", "")
 			key = strings.ReplaceAll(key, "]", "")
 			key = strings.ReplaceAll(key, ",", "_")
-			newDevice.Basic.Taints = []resourcev1.DeviceTaint{{
+			newDevice.Taints = []resourcev1.DeviceTaint{{
 				Key:    key,
 				Effect: resourcev1.DeviceTaintEffectNoExecute,
 			}}
