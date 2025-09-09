@@ -113,18 +113,11 @@ PluginDataDirectoryPath: %v`,
 
 	driver.helper = helper
 
-	state := nodeState{NodeState: driver.state}
-	resources := state.GetResources()
-	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[state.NodeName].Slices[0].Devices))
-	klog.V(5).Infof("devices: %+v", resources.Pools[state.NodeName].Slices[0].Devices)
-
-	if gpuFlags.Healthcare {
-		// startHealthMonitor listens for unhealthy UIDs, has to run in a routine.
-		go driver.startHealthMonitor(ctx, gpuFlags.HealthcareInterval)
+	if err := driver.PublishResourceSlice(ctx); err != nil {
+		return nil, err
 	}
-
-	if err := helper.PublishResources(ctx, resources); err != nil {
-		return nil, fmt.Errorf("error publishing resources: %v", err)
+	if gpuFlags.Healthcare {
+		go driver.startHealthMonitor(ctx, gpuFlags.HealthcareInterval)
 	}
 	klog.V(3).Info("Finished creating new driver")
 
