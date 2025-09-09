@@ -10,17 +10,14 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
 
-// updatedDeviceInfo contains the UID and description of an unhealthy device.
-type updatedDeviceInfo struct {
-	uid    string
-	status map[string]string // key is health type, value is health status.
-}
+// HealthStatusUpdates is a type alias for map[deviceUID]map[healthType]status.
+type HealthStatusUpdates map[string]map[string]string
 
 func (d *driver) startHealthMonitor(ctx context.Context, intervalSeconds int) {
-	// Watch for device UIDs and descriptions to mark unhealthy.
-	idsChan := make(chan updatedDeviceInfo)
+	// Channel carries per-interval health status deltas keyed by device UID.
+	healthStatusUpdatesCh := make(chan HealthStatusUpdates)
 	goxpusmiCtx, stopMonitor := context.WithCancel(ctx)
-	go d.watchGPUHealthStatuses(goxpusmiCtx, intervalSeconds, idsChan)
+	go d.watchGPUHealthStatuses(goxpusmiCtx, intervalSeconds, healthStatusUpdatesCh)
 
 	for {
 		select {
@@ -28,37 +25,37 @@ func (d *driver) startHealthMonitor(ctx context.Context, intervalSeconds int) {
 		case <-goxpusmiCtx.Done():
 			stopMonitor()
 			return
-		case updatedDevice := <-idsChan:
-			d.updateHealth(goxpusmiCtx, updatedDevice)
+		case healthDeltas := <-healthStatusUpdatesCh:
+			d.updateHealth(goxpusmiCtx, healthDeltas)
 		}
 	}
 }
 
-func (d *driver) updateHealth(ctx context.Context, updatedDevice updatedDeviceInfo) {
+func (d *driver) updateHealth(ctx context.Context, healthStatusUpdates HealthStatusUpdates) {
 	d.state.Lock()
 	defer d.state.Unlock()
-
-	klog.Infof("Updating info for device %v to status=%v", updatedDevice.uid, updatedDevice.status)
 	//nolint:forcetypeassert // We want the code to panic if our assumption turns out to be wrong.
 	allocatable := d.state.Allocatable.(map[string]*device.DeviceInfo)
-	foundDevice, found := allocatable[updatedDevice.uid]
-	if !found {
-		klog.Errorf("could not find allocatable device with UID %v", updatedDevice.uid)
-		return
-	}
+	for deviceUID, healthStatus := range healthStatusUpdates {
+		klog.Infof("Updating info for device %v to status=%v", deviceUID, healthStatus)
+		foundDevice, found := allocatable[deviceUID]
+		if !found {
+			klog.Errorf("could not find allocatable device with UID %v", deviceUID)
+			return
+		}
 
-	// Determine overall health: healthy unless any status is CRITICAL.
-	isHealthy := true
-	if foundDevice.HealthStatus == nil {
-		foundDevice.HealthStatus = make(map[string]string)
+		// Determine overall health: healthy unless any status is CRITICAL.
+		isHealthy := true
+		if foundDevice.HealthStatus == nil {
+			foundDevice.HealthStatus = make(map[string]string)
+		}
+		for healthType, status := range healthStatusUpdates[deviceUID] {
+			foundDevice.HealthStatus[healthType] = status
+			health := statusHealth(status)
+			isHealthy = isHealthy && health
+		}
+		foundDevice.Healthy = isHealthy
 	}
-	for healthType, status := range updatedDevice.status {
-		foundDevice.HealthStatus[healthType] = status
-		health := statusHealth(status)
-		isHealthy = isHealthy && health
-	}
-	foundDevice.Healthy = isHealthy
-
 	// Health is updated from a go routine, nothing we can do when publishing
 	// resource slice fails, so error is only logged.
 	if err := d.PublishResourceSlice(ctx); err != nil {
@@ -66,8 +63,9 @@ func (d *driver) updateHealth(ctx context.Context, updatedDevice updatedDeviceIn
 	}
 }
 
-// watchGPUHealthStatuses polls XPUM metric health info and updates health status of devices accordingly.
-func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int, idsChan chan<- updatedDeviceInfo) {
+// watchGPUHealthStatuses polls XPUM metric health info and sends per-interval
+// health status deltas to healthStatusUpdatesCh only when there are updates.
+func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int, healthStatusUpdatesCh chan<- HealthStatusUpdates) {
 	devices, err := goxpusmi.Discover(true)
 	if err != nil {
 		klog.Errorf("could not discover devices for health monitoring: %v", err)
@@ -81,9 +79,7 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int
 			return
 		case <-healthCheckInterval.C:
 			if updates := goxpusmi.HealthCheck(devices); len(updates) > 0 {
-				for uid, status := range updates {
-					idsChan <- updatedDeviceInfo{uid: uid, status: status}
-				}
+				healthStatusUpdatesCh <- updates
 			}
 		}
 	}
@@ -101,7 +97,7 @@ func statusHealth(status string) (health bool) {
 	case "Unknown":
 		return true
 	default:
-		// something else than status value.
+		// This is unexpected, we should never get here.
 		panic("invalid status value")
 	}
 }
