@@ -100,13 +100,20 @@ func (c *CDI) SyncDevices(vfdevices device.VFDevices) error {
 			}
 		}
 		if vendorspecupdate {
+			if len(vendorspec.Devices) == 0 {
+				klog.V(5).Infof("No devices in spec %v, deleting it", vendorspecname)
+				if err := c.cache.RemoveSpec(vendorspecname); err != nil {
+					klog.Errorf("failed to remove empty CDI spec %v: %v", vendorspecname, err)
+				}
+				continue
+			}
+
 			// Update spec file that has a nonexistent device.
 			klog.Infof("Updating spec file %s with existing devices", path.Base(vendorspec.GetPath()))
 
 			vendorspec.Devices = vendorspecdevices
-			err := c.cache.WriteSpec(vendorspec.Spec, vendorspecname)
-			if err != nil {
-				klog.Warningf("Failed to update existing CDI spec file %s: %v", vendorspecname, err)
+			if err := c.cache.WriteSpec(vendorspec.Spec, vendorspecname); err != nil {
+				klog.Errorf("Failed to update existing CDI spec file %s: %v", vendorspecname, err)
 			}
 		}
 	}

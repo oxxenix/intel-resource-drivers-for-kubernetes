@@ -38,8 +38,9 @@ import (
 	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
-func TestFakeSysfs(t *testing.T) {
+func TestGPUFakeSysfs(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+	defer testhelpers.CleanupTest(t, "TestGPUFakeSysfs", testDirs.TestRoot)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return

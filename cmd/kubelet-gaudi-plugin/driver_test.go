@@ -45,6 +45,7 @@ const (
 
 func TestGaudiFakeSysfs(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+	defer testhelpers.CleanupTest(t, "TestGaudiFakeSysfs", testDirs.TestRoot)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return

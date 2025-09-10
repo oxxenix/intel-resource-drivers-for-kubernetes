@@ -6,6 +6,7 @@ package cdihelpers
 
 import (
 	"testing"
+	"time"
 
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	specs "tags.cncf.io/container-device-interface/specs-go"
@@ -149,6 +150,40 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name: "Existing specs, remove all present devices with cleanup",
+			existingSpecs: []*cdiapi.Spec{
+				{
+					Spec: &specs.Spec{
+						Kind:    device.CDIKind,
+						Version: "0.6.0",
+						Devices: []specs.Device{
+							{
+								Name: "gpu1",
+								ContainerEdits: specs.ContainerEdits{
+									DeviceNodes: []*specs.DeviceNode{
+										{Path: "/dev/dri/card0", HostPath: "/dev/dri/card0", Type: "c"},
+										{Path: "/dev/dri/renderD128", HostPath: "/dev/dri/renderD128", Type: "c"},
+									},
+								},
+							},
+							{
+								Name: "gpu2",
+								ContainerEdits: specs.ContainerEdits{
+									DeviceNodes: []*specs.DeviceNode{
+										{Path: "/dev/dri/card1", HostPath: "/dev/dri/card1", Type: "c"},
+										{Path: "/dev/dri/renderD129", HostPath: "/dev/dri/renderD129", Type: "c"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			detectedDevices: device.DevicesInfo{},
+			doCleanup:       true,
+			expectedError:   false,
+		},
+		{
 			name: "Existing specs, add new devices to existing spec",
 			existingSpecs: []*cdiapi.Spec{
 				{
@@ -179,6 +214,7 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+			defer testhelpers.CleanupTest(t, tt.name, testDirs.TestRoot)
 			if err != nil {
 				t.Fatalf("could not create fake system dirs: %v", err)
 			}
@@ -193,6 +229,9 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 					t.Fatalf("failed to write spec, %v", err)
 				}
 			}
+			// Sometimes cache is not fast enough to write existing specs file for FUT to find.
+			time.Sleep(250 * time.Millisecond)
+
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
 			if err := SyncDetectedDevicesWithRegistry(cdiCache, tt.detectedDevices, tt.doCleanup); (err != nil) != tt.expectedError {

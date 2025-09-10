@@ -112,6 +112,15 @@ func syncSpecDevices(specDevices []specs.Device, detected device.DevicesInfo, do
 
 func writeUpdatedSpec(cdiCache *cdiapi.Cache, spec *cdiapi.Spec) error {
 	specName := path.Base(spec.GetPath())
+
+	if len(spec.Devices) == 0 {
+		klog.V(5).Infof("No devices in spec %v, deleting it", specName)
+		if err := cdiCache.RemoveSpec(specName); err != nil {
+			return fmt.Errorf("failed to remove empty CDI spec %v: %v", specName, err)
+		}
+		return nil
+	}
+
 	klog.V(5).Infof("Updating spec %v", specName)
 	err := cdiCache.WriteSpec(spec.Spec, specName)
 	if err != nil {
