@@ -31,6 +31,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"k8s.io/klog/v2"
+
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
@@ -72,6 +74,7 @@ var (
 		"Number of Tiles":                 C.XPUM_DEVICE_PROPERTY_NUMBER_OF_TILES,
 		"Number of EUs":                   C.XPUM_DEVICE_PROPERTY_NUMBER_OF_EUS,
 	}
+	// Used as Taint keys => need to conform to their format (no spaces etc).
 	healthTypes = map[string]C.xpum_health_type_t{
 		"CoreThermal":   C.XPUM_HEALTH_CORE_THERMAL,
 		"MemoryThermal": C.XPUM_HEALTH_MEMORY_THERMAL,
@@ -231,7 +234,7 @@ func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updates map[string]map
 				updates[deviceUID] = make(map[string]string)
 			}
 			updates[deviceUID][healthTypeName] = healthStatuses[currStatus]
-			fmt.Printf("Device %d health update. Type='%s' prev='%s' curr='%s' description='%s'\n",
+			klog.V(3).Infof("Device %d health change. Type='%s' prev='%s' curr='%s' description='%s'",
 				device.DeviceId, healthTypeName, healthStatuses[prevStatus], healthStatuses[currStatus], C.GoString(&healthData.description[0]))
 		}
 	}
