@@ -108,6 +108,7 @@ func processSysfsDriverDir(files []os.DirEntry, driverName string, sysfsDriverDi
 			CardIdx:    0,
 			RenderdIdx: 0,
 			Driver:     driverName,
+			Healthy:    true, // presume healthy until proven otherwise
 		}
 
 		sysfsDeviceDir := path.Join(sysfsDriverDir, devicePCIAddress)
