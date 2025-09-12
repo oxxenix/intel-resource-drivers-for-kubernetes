@@ -2,7 +2,6 @@ package cdihelpers
 
 import (
 	"testing"
-	"time"
 
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	cdiSpecs "tags.cncf.io/container-device-interface/specs-go"
@@ -92,7 +91,8 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 					t.Fatalf("failed to write spec, %v", err)
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			testhelpers.CDICacheDelay()
+
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
 			if err := SyncDetectedDevicesWithRegistry(cdiCache, tt.detectedDevices, tt.doCleanup); (err != nil) != tt.expectedError {
@@ -153,7 +153,7 @@ func TestAddDeviceToAnySpec(t *testing.T) {
 					t.Fatalf("failed to write spec, %v", err)
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			testhelpers.CDICacheDelay()
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
 			if err := AddDeviceToAnySpec(cdiCache, device.CDIVendor, tt.newDevice); (err != nil) != tt.expectedError {
@@ -258,7 +258,7 @@ func TestDeleteDeviceAndWrite(t *testing.T) {
 					t.Fatalf("failed to write spec, %v", err)
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			testhelpers.CDICacheDelay()
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
 			if err := DeleteDeviceAndWrite(cdiCache, tt.claimUID); (err != nil) != tt.expectedError {

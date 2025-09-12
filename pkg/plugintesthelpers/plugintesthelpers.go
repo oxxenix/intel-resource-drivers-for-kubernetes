@@ -21,6 +21,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	resourcev1 "k8s.io/api/resource/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -163,4 +164,8 @@ func NewClaimWithAlienDevice(claimNs, claimName, claimUID, requestName, driverNa
 	allocationDevices.Results = append(allocationDevices.Results, alienDevice)
 
 	return claim
+}
+
+func CDICacheDelay() {
+	time.Sleep(200 * time.Millisecond)
 }

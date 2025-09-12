@@ -6,13 +6,12 @@ package cdihelpers
 
 import (
 	"testing"
-	"time"
 
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	specs "tags.cncf.io/container-device-interface/specs-go"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
-	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
 func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
@@ -213,8 +212,8 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testDirs, err := testhelpers.NewTestDirs(device.DriverName)
-			defer testhelpers.CleanupTest(t, tt.name, testDirs.TestRoot)
+			testDirs, err := plugintesthelpers.NewTestDirs(device.DriverName)
+			defer plugintesthelpers.CleanupTest(t, tt.name, testDirs.TestRoot)
 			if err != nil {
 				t.Fatalf("could not create fake system dirs: %v", err)
 			}
@@ -229,8 +228,7 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 					t.Fatalf("failed to write spec, %v", err)
 				}
 			}
-			// Sometimes cache is not fast enough to write existing specs file for FUT to find.
-			time.Sleep(250 * time.Millisecond)
+			plugintesthelpers.CDICacheDelay()
 
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
