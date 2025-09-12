@@ -104,6 +104,9 @@ func NewMonitoringClaim(claimNs, claimName, claimUID, requestName, driverName, p
 }
 
 // TODO: only Exactly requests tested ATM, test FirstAvailable as well.
+// See: https://pkg.go.dev/k8s.io/api/resource/v1#DeviceRequest
+// TODO: Test also >1 Count and different AlloctionModes + Selectors.
+// See: https://pkg.go.dev/k8s.io/api/resource/v1#ExactDeviceRequest
 func NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool string, allocatedDevices []string) *resourcev1.ResourceClaim {
 	allocationResults := []resourcev1.DeviceRequestAllocationResult{}
 	for _, deviceUID := range allocatedDevices {
