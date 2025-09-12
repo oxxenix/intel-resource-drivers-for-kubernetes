@@ -183,7 +183,7 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 			expectedError:   false,
 		},
 		{
-			name: "Existing specs, add new devices to existing spec",
+			name: "Existing specs, remove earlier device and add new one",
 			existingSpecs: []*cdiapi.Spec{
 				{
 					Spec: &specs.Spec{
