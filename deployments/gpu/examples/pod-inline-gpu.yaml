@@ -1,4 +1,4 @@
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: claim1
@@ -7,7 +7,8 @@ spec:
     devices:
       requests:
       - name: gpu
-        deviceClassName: gpu.intel.com
+        exactly:
+          deviceClassName: gpu.intel.com
 ##
 ## if one is not enough
 #        count: 2

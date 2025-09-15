@@ -85,15 +85,11 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 		client: config.Coreclient,
 	}
 
-	registrarSocket := path.Join(config.CommonFlags.KubeletPluginsRegistryDir, device.PluginRegistrarFileName)
-	pluginSocket := path.Join(config.CommonFlags.KubeletPluginDir, device.PluginSocketFileName)
 	klog.Infof(`Starting DRA resource-driver kubelet-plugin
-RegistrarSocketPath: %v
-PluginSocketPath: %v
-KubeletPluginSocketPath: %v`,
-		registrarSocket,
-		pluginSocket,
-		pluginSocket)
+RegistrarDirectoryPath: %v
+PluginDataDirectoryPath: %v`,
+		config.CommonFlags.KubeletPluginsRegistryDir,
+		config.CommonFlags.KubeletPluginDir)
 
 	helper, err := kubeletplugin.Start(
 		ctx,

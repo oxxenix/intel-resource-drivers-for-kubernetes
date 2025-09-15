@@ -6,25 +6,24 @@ nodeRegistration:
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
-kubernetesVersion: v1.33.0
+kubernetesVersion: v1.34.0
 apiServer:
   extraArgs:
   - name: feature-gates
-    value: DynamicResourceAllocation=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPrioritizedList=true,DRAPartitionableDevices=true,DRAResourceClaimDeviceStatus=true
-  - name: runtime-config
-    value: resource.k8s.io/v1beta1=true,resource.k8s.io/v1alpha3=true
+    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true,DRAResourceClaimDeviceStatus=true
 clusterName: kubernetes
 controllerManager:
   extraArgs:
   - name: feature-gates
-    value: DynamicResourceAllocation=true,DRADeviceTaints=true
+    value: DRADeviceTaints=true
 imageRepository: registry.k8s.io
 scheduler:
   extraArgs:
   - name: feature-gates
-    value: DynamicResourceAllocation=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPrioritizedList=true,DRAPartitionableDevices=true
+    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 featureGates:
   DynamicResourceAllocation: true
+  DRAExtendedResource: true

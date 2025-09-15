@@ -1,4 +1,4 @@
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: DeviceClass
 metadata:
   name: gpu.intel.com
@@ -7,3 +7,4 @@ spec:
   selectors:
   - cel:
       expression: device.driver == "gpu.intel.com"
+  extendedResourceName: intel.com/gpu

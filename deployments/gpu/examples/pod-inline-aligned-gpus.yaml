@@ -1,0 +1,32 @@
+apiVersion: resource.k8s.io/v1beta1
+kind: ResourceClaim
+metadata:
+  name: same-pciroot-gpus
+spec:
+  devices:
+    requests:
+    - name: gpu
+      deviceClassName: gpu.intel.com
+      count: 2
+    constraints:
+    - matchAttribute: "gpu.intel.com/pciRoot"
+---
+apiversion: v1
+kind: Pod
+metadata:
+  name: test-inline-claim
+spec:
+  restartpolicy: never
+  containers:
+  - name: with-resource
+    image: registry.k8s.io/e2e-test-images/busybox:1.29-2
+    command: ["sh", "-c", "ls -la /dev/dri/ && sleep 60"]
+    resources:
+      claims:
+      - name: resource
+  - name: without-resource
+    image: registry.k8s.io/e2e-test-images/busybox:1.29-2
+    command: ["sh", "-c", "ls -la /dev/ && sleep 60"]
+  resourceclaims:
+  - name: resource
+    resourceclaimname: same-pciroot-gpus

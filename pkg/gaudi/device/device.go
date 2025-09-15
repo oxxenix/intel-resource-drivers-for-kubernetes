@@ -55,9 +55,7 @@ const (
 	DriverName       = CDIClass + "." + CDIVendor
 	PCIAddressLength = len("0000:00:00.0")
 
-	PreparedClaimsFileName  = "preparedClaims.json"
-	PluginRegistrarFileName = DriverName + ".sock"
-	PluginSocketFileName    = "plugin.sock"
+	PreparedClaimsFileName = "preparedClaims.json"
 
 	DefaultNamingStyle       = "machine"
 	VisibleDevicesEnvVarName = "HABANA_VISIBLE_DEVICES"

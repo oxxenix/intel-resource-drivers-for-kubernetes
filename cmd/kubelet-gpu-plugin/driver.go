@@ -130,6 +130,11 @@ func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceap
 	response := map[types.UID]kubeletplugin.PrepareResult{}
 
 	for _, claim := range claims {
+		klog.V(6).Infof("Claim: %+v", claim)
+		if claim == nil {
+			klog.Warningf("Received nil claim, skipping")
+			continue
+		}
 		response[claim.UID] = d.prepareResourceClaim(ctx, claim)
 	}
 

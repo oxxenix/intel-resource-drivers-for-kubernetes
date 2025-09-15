@@ -47,9 +47,7 @@ const (
 
 	UIDLength = len("0000-00-00-0-0x0000")
 
-	PreparedClaimsFileName  = "preparedClaims.json"
-	PluginRegistrarFileName = DriverName + ".sock"
-	PluginSocketFileName    = "plugin.sock"
+	PreparedClaimsFileName = "preparedClaims.json"
 
 	DefaultNamingStyle = "machine"
 	GpuDeviceType      = "gpu"

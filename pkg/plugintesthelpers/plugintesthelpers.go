@@ -129,7 +129,7 @@ func NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool string
 	allocationResults = append(allocationResults, alienDevice)
 
 	claim := &resourcev1.ResourceClaim{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "resource.k8s.io/v1beta1", Kind: "ResourceClaim"},
+		TypeMeta:   metav1.TypeMeta{APIVersion: "resource.k8s.io/v1", Kind: "ResourceClaim"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: claimNs, Name: claimName, UID: types.UID(claimUID)},
 		Spec: resourcev1.ResourceClaimSpec{
 			Devices: resourcev1.DeviceClaim{
