@@ -24,8 +24,7 @@ COPY . .
 # Add xpu-smi shared library
 RUN \
 wget -qO /tmp/xpu-smi.deb https://github.com/intel/xpumanager/releases/download/V1.3.1/xpu-smi_1.3.1_20250724.061629.60921e5e_u24.04_amd64.deb && \
-dpkg -i --ignore-depends=level-zero,intel-gsc,libze-intel-gpu1 /tmp/xpu-smi.deb && \
-rm /tmp/xpu-smi.deb
+dpkg -i --ignore-depends=level-zero,intel-gsc,libze-intel-gpu1 /tmp/xpu-smi.deb
 
 # Build GPU DRA driver
 RUN make gpu && \
@@ -38,6 +37,7 @@ cp bin/kubelet-gpu-plugin /install_root/
 
 # Prepare dependencies
 FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab AS ubuntu
+COPY --from=build /tmp/xpu-smi.deb /tmp/xpu-smi.deb
 
 RUN \
 sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources && \
@@ -47,7 +47,8 @@ apt-get install -y software-properties-common python3-launchpadlib
 RUN \
 add-apt-repository -s -y ppa:kobuk-team/intel-graphics && \
 apt-get update && \
-apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-gsc xpu-smi
+apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-gsc && \
+apt-get install -y /tmp/xpu-smi.deb
 
 RUN \
 mkdir /tmp/src && \

@@ -150,7 +150,7 @@ func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) e
 	fmt.Println("Scanning for GPUs")
 
 	// Do a verbose discovery.
-	detectedDevices := gpuDiscovery.DiscoverDevices(sysfsDir, namingStyle, true)
+	detectedDevices := gpuDiscovery.DiscoverDevices(sysfsDir, namingStyle, true, false)
 	if len(detectedDevices) == 0 {
 		fmt.Println("No supported devices detected")
 	}

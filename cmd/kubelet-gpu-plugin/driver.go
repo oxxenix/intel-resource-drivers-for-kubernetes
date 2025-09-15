@@ -27,6 +27,7 @@ import (
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/goxpusmi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
@@ -34,9 +35,10 @@ import (
 )
 
 type driver struct {
-	client coreclientset.Interface
-	state  *helpers.NodeState
-	helper *kubeletplugin.Helper
+	client     coreclientset.Interface
+	state      *helpers.NodeState
+	helper     *kubeletplugin.Helper
+	monitoring bool
 }
 
 func (d *driver) PublishResourceSlice(ctx context.Context) error {
@@ -77,11 +79,17 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
 			NodeName:               config.CommonFlags.NodeName,
 		},
+		monitoring: gpuFlags.Healthcare,
 	}
 
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
 
-	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery)
+	// Initialize XPU SMI library.
+	if err = goxpusmi.Initialize(); err != nil {
+		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", err)
+	}
+
+	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery, err == nil)
 	if len(detectedDevices) == 0 {
 		klog.Info("No supported devices detected")
 	}
@@ -116,7 +124,9 @@ PluginDataDirectoryPath: %v`,
 	if err := driver.PublishResourceSlice(ctx); err != nil {
 		return nil, err
 	}
+
 	if gpuFlags.Healthcare {
+		klog.Info("Starting health monitoring")
 		go driver.startHealthMonitor(ctx, gpuFlags.HealthcareInterval)
 	}
 	klog.V(3).Info("Finished creating new driver")
@@ -130,11 +140,6 @@ func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceap
 	response := map[types.UID]kubeletplugin.PrepareResult{}
 
 	for _, claim := range claims {
-		klog.V(6).Infof("Claim: %+v", claim)
-		if claim == nil {
-			klog.Warningf("Received nil claim, skipping")
-			continue
-		}
 		response[claim.UID] = d.prepareResourceClaim(ctx, claim)
 	}
 
@@ -176,6 +181,12 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 
 func (d *driver) Shutdown(ctx context.Context) error {
 	d.helper.Stop()
+	// In case there was no monitoring started, shutdown XPU SMI here.
+	if !d.monitoring {
+		if err := goxpusmi.Shutdown(); err != nil {
+			klog.Errorf("failed to shutdown xpu-smi: %v", err)
+		}
+	}
 	return nil
 }
 

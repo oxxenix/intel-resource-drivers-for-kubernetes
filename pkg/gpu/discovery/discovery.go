@@ -42,8 +42,10 @@ var (
 )
 
 // Detect devices from sysfs.
-func DiscoverDevices(sysfsDir, namingStyle string, verbose bool) map[string]*device.DeviceInfo {
-	populateXpuDeviceDetails(verbose)
+func DiscoverDevices(sysfsDir, namingStyle string, verbose bool, withXpuSmi bool) map[string]*device.DeviceInfo {
+	if withXpuSmi {
+		populateXpuDeviceDetails(verbose)
+	}
 
 	sysfsDRMDir := path.Join(sysfsDir, device.SysfsDRMpath)
 	devices := make(map[string]*device.DeviceInfo)
@@ -71,10 +73,6 @@ func DiscoverDevices(sysfsDir, namingStyle string, verbose bool) map[string]*dev
 func populateXpuDeviceDetails(verbose bool) {
 	klog.V(5).Info("Initializing xpu-smi")
 	var err error
-	if err = goxpusmi.Initialize(); err != nil {
-		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", err)
-		return
-	}
 
 	klog.V(5).Info("Querying xpu-smi for devices information")
 	xpuDeviceDetails, err = goxpusmi.Discover(verbose)
@@ -82,10 +80,6 @@ func populateXpuDeviceDetails(verbose bool) {
 		klog.Errorf("failed to discover devices with xpu-smi: %v", err)
 	} else {
 		klog.V(5).Infof("Discovered %d devices with xpu-smi: %+v", len(xpuDeviceDetails), xpuDeviceDetails)
-	}
-
-	if err := goxpusmi.Shutdown(); err != nil {
-		klog.Errorf("failed to shutdown xpu-smi: %v", err)
 	}
 }
 

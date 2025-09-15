@@ -362,8 +362,8 @@ func TestDiscoverDevices(t *testing.T) {
 				}
 			}
 
-			// Discover devices
-			devices := discovery.DiscoverDevices(testDirs.SysfsRoot, tt.namingStyle, true)
+			// Discover devices without xpu-smi. TODO: cover xpu-smi as well.
+			devices := discovery.DiscoverDevices(testDirs.SysfsRoot, tt.namingStyle, true, false)
 
 			// Validate results
 			if len(devices) != len(tt.expected) {
