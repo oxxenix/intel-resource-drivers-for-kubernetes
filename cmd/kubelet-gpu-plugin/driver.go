@@ -147,7 +147,7 @@ func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceap
 }
 
 func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.ResourceClaim) kubeletplugin.PrepareResult {
-	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claim)
+	klog.V(5).Infof("NodePrepareResource is called for claim %v", claim.UID)
 
 	if claimPreparation, found := d.state.Prepared[string(claim.UID)]; found {
 		klog.V(3).Infof("Claim %v was already prepared, nothing to do", claim.UID)
