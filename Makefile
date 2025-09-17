@@ -271,26 +271,26 @@ html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
 	@echo coverage file: coverage.html
 
+# full test coverage (except e2e tests)
 $(COVERAGE_FILE): $(shell find cmd pkg -name '*.go')
 	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
-.PHONY: gpu-coverage gaudi-coverage qat-coverage cdispecsgen-coverage excluded-coverage
+# gpu coverage
+gpu-coverage.out: $(shell find cmd/kubelet-gpu-plugin pkg/gpu -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gpu-plugin/... ./pkg/gpu/...)
 
-gpu-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gaudi-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gaudi|pkg/fakesysfs|plugintesthelpers|fake_hlml|version"
-gpu-coverage: excluded-coverage
-# See: https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html
+# qat coverage
+qat-coverage.out: $(shell find cmd/kubelet-qat-plugin cmd/qat-showdevice pkg/qat -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-qat-plugin/... ./cmd/qat-showdevice/... ./pkg/qat/...)
 
-gaudi-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gpu-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gpu|pkg/fakesysfs|plugintesthelpers|version"
-gaudi-coverage: excluded-coverage
+# gaudi coverage
+gaudi-coverage.out: $(shell find cmd/kubelet-gaudi-plugin pkg/gaudi -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gaudi-plugin/... ./pkg/gaudi/...)
 
-qat-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gpu-plugin|kubelet-gaudi-plugin|pkg/gpu|pkg/gaudi|pkg/fakesysfs|plugintesthelpers|fake_hlml|version"
-qat-coverage: excluded-coverage
+# cdi-specs-generator coverage
+cdispecsgen-coverage.out: $(shell find cmd/cdi-specs-generator pkg/gpu pkg/gaudi -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/cdi-specs-generator/... ./pkg/gpu/... ./pkg/gaudi/...)
 
-cdispecsgen-coverage: COVERAGE_EXCLUDE="device-faker|kubelet-gpu-plugin|kubelet-gaudi-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gpu|pkg/gaudi|pkg/fakesysfs|plugintesthelpers|fake_hlml|version"
-cdispecsgen-coverage: excluded-coverage
-
-COVERAGE_EXCLUDE ?= "$^"
-excluded-coverage: $(COVERAGE_FILE)
-	@grep -v -E $(COVERAGE_EXCLUDE) $(COVERAGE_FILE) > $(COVERAGE_FILE).tmp && \
-	go tool cover -func=$(COVERAGE_FILE).tmp && \
-	rm $(COVERAGE_FILE).tmp
+.PHONY: %-coverage
+%-coverage: %-coverage.out
+	go tool cover -func=$@.out
