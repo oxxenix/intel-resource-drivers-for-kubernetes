@@ -5,4 +5,5 @@ resources:
 
 images:
   - name: intel/intel-gpu-resource-driver
-    newTag: v0.8.0
+    newName: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gpu-resource-driver
+    newTag: v0.9.0-rc0

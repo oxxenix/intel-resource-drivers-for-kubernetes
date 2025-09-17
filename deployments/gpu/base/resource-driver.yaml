@@ -20,7 +20,6 @@ spec:
       containers:
       - name: kubelet-plugin
         image: intel/intel-gpu-resource-driver:latest
-        imagePullPolicy: IfNotPresent
         command: ["/kubelet-gpu-plugin"]
         env:
         - name: NODE_NAME

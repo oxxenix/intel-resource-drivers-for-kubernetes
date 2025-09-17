@@ -38,7 +38,7 @@ type driver struct {
 	client     coreclientset.Interface
 	state      *helpers.NodeState
 	helper     *kubeletplugin.Helper
-	monitoring bool
+	healthcare bool
 }
 
 func (d *driver) PublishResourceSlice(ctx context.Context) error {
@@ -79,17 +79,19 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
 			NodeName:               config.CommonFlags.NodeName,
 		},
-		monitoring: gpuFlags.Healthcare,
+		healthcare: gpuFlags.Healthcare,
 	}
 
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
 
 	// Initialize XPU SMI library.
-	if err = goxpusmi.Initialize(); err != nil {
-		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", err)
+	xpusmiInitErr := goxpusmi.Initialize()
+	if xpusmiInitErr != nil {
+		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", xpusmiInitErr)
+		driver.healthcare = false
 	}
 
-	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery, err == nil)
+	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery, xpusmiInitErr == nil)
 	if len(detectedDevices) == 0 {
 		klog.Info("No supported devices detected")
 	}
@@ -125,7 +127,7 @@ PluginDataDirectoryPath: %v`,
 		return nil, err
 	}
 
-	if gpuFlags.Healthcare {
+	if driver.healthcare {
 		klog.Info("Starting health monitoring")
 		go driver.startHealthMonitor(ctx, gpuFlags.HealthcareInterval)
 	}
@@ -181,8 +183,9 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 
 func (d *driver) Shutdown(ctx context.Context) error {
 	d.helper.Stop()
-	// In case there was no monitoring started, shutdown XPU SMI here.
-	if !d.monitoring {
+	// Health monitoring does shutdown by itself (when main context goes down), if enabled,
+	// otherwise do shutdown here.
+	if !d.healthcare {
 		if err := goxpusmi.Shutdown(); err != nil {
 			klog.Errorf("failed to shutdown xpu-smi: %v", err)
 		}

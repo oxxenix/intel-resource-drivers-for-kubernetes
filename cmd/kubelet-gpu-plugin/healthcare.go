@@ -66,7 +66,8 @@ func (d *driver) updateHealth(ctx context.Context, healthStatusUpdates HealthSta
 // watchGPUHealthStatuses polls XPUM metric health info and sends per-interval
 // health status deltas to healthStatusUpdatesCh only when there are updates.
 func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int, healthStatusUpdatesCh chan<- HealthStatusUpdates) {
-	devices, err := goxpusmi.Discover(true)
+	nonVerboseDiscovery := false
+	devices, err := goxpusmi.Discover(nonVerboseDiscovery)
 	if err != nil {
 		klog.Errorf("could not discover devices for health monitoring: %v", err)
 		return
