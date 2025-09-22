@@ -25,6 +25,5 @@ scheduler:
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 featureGates:
-  DynamicResourceAllocation: true
   DRAExtendedResource: true
   ResourceHealthStatus: true

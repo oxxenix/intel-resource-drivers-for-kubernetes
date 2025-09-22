@@ -11,18 +11,18 @@ spec:
           deviceClassName: gpu.intel.com
 ##
 ## if one is not enough
-#        count: 2
+#          count: 2
 ##
 ## requesting particular series
-#        selectors:
-#        - cel:
-#            expression: device.attributes["gpu.intel.com"].family == 'Flex'
-#        - cel:
-#            expression: device.capacity["gpu.intel.com"].memory.compareTo(quantity("4Gi")) >= 0
+#          selectors:
+#          - cel:
+#              expression: device.attributes["gpu.intel.com"].driver == 'i915'
+#          - cel:
+#              expression: device.capacity["gpu.intel.com"].memory.compareTo(quantity("4Gi")) >= 0
 
 ## for monitoring
-#        adminAccess: true
-#        allocationMode: "All"
+#          adminAccess: true # requires 'resource.kubernetes.io/admin-access: true' label
+#          allocationMode: "All"
 ---
 apiVersion: v1
 kind: Pod
@@ -33,13 +33,13 @@ spec:
   containers:
   - name: with-resource
     image: registry.k8s.io/e2e-test-images/busybox:1.29-2
-    command: ["sh", "-c", "ls -la /dev/dri/ && sleep 60"]
+    command: ["sh", "-c", "ls -la /dev/dri/ && sleep 20"]
     resources:
       claims:
       - name: resource
   - name: without-resource
     image: registry.k8s.io/e2e-test-images/busybox:1.29-2
-    command: ["sh", "-c", "ls -la /dev/ && sleep 60"]
+    command: ["sh", "-c", "ls -la /dev/ && sleep 20"]
   resourceClaims:
   - name: resource
     resourceClaimTemplateName: claim1

@@ -6,7 +6,8 @@ spec:
   devices:
     requests:
     - name: gpu
-      deviceClassName: gpu.intel.com
-      selectors:
-      - cel:
-          expression: device.attributes["gpu.intel.com"].family == 'Flex'
+      exactly:
+        deviceClassName: gpu.intel.com
+        selectors:
+        - cel:
+            expression: device.attributes["gpu.intel.com"].family == 'Flex'

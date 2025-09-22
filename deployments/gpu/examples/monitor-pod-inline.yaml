@@ -7,9 +7,10 @@ spec:
     devices:
       requests:
       - name: gpu
-        deviceClassName: gpu.intel.com
-        adminAccess: true
-        allocationMode: "All"
+        exactly:
+          deviceClassName: gpu.intel.com
+          adminAccess: true
+          allocationMode: "All"
 ---
 apiVersion: v1
 kind: Pod

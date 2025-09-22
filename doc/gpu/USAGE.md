@@ -1,6 +1,6 @@
 ## Requirements
 
-- Kubernetes 1.31+, with `DynamicResourceAllocation` feature-flag enabled, and [other cluster parameters](../../hack/clusterconfig.yaml)
+- Kubernetes 1.34+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
   - Containerd v1.7 or newer
@@ -18,15 +18,9 @@ version = 2
     cdi_specs_dir = ["/etc/cdi", "/var/run/cdi"]
 ```
 
-## Limitations
-
-- Currently max 640 GPUs can be requested for one resource claim (10 PCIe devices,
-  each with 64 SR-IOV VFs = 640 VFs on the same node).
-- v0.6.0 only supports K8s v1.31 which does not have partitionable devices support,
-  therefore this release does not support dynamic GPU SR-IOV configuration.
-- v0.6.0+ do not support classic DRA and only relies on Structured Parameters DRA
-
 ## Deploy resource-driver
+
+### From sources
 
 ```bash
 kubectl apply -k deployments/gpu/
@@ -39,7 +33,7 @@ To restrict the deployment to GPU-enabled nodes, follow these steps:
 Follow [Node Feature Discovery](https://github.com/kubernetes-sigs/node-feature-discovery) documentation to install and configure NFD in your cluster.
 
 ```bash
-kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.17.1"
+kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.17.4"
 ```
 
 2. Apply NFD Rules:
@@ -96,10 +90,22 @@ spec:
   devices:
   - basic:
       attributes:
+        driver:
+          string: i915
         family:
           string: Arc
+        healthy:
+          bool: true
         model:
           string: A770
+        pciAddress:
+          string: "0000:03:00.0"
+        pciId:
+          string: "0x56a0"
+        pciRoot:
+          string: "00"
+        sriov:
+          bool: false
       capacity:
         memory: 16288Mi
         millicores: 1k
