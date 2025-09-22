@@ -30,6 +30,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"unsafe"
 
 	"k8s.io/klog/v2"
 
@@ -239,4 +240,29 @@ func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updates map[string]map
 		}
 	}
 	return updates
+}
+
+// SetHealthConfig sets health configuration for all devices.
+func SetHealthConfig(devices map[string]XPUSMIDeviceDetails, healthConfigType string, healthConfigValue int) {
+	for _, device := range devices {
+		devId := device.DeviceId
+		// nolint:gocritic // false positive: no duplicated sub-expression
+		result := C.xpumSetHealthConfig(C.xpum_device_id_t(devId), HealthConfigTypeFromString(healthConfigType), unsafe.Pointer(&healthConfigValue))
+		if result != C.XPUM_OK {
+			panic(fmt.Sprintf("Set '%s' health threshold for device %d: value='%d' failed: %v", healthConfigType, devId, healthConfigValue, errorString(result)))
+		}
+		klog.V(3).Infof("Set health '%s' threshold for device %d: value='%d', result=<%d>", healthConfigType, devId, healthConfigValue, result)
+	}
+}
+
+func HealthConfigTypeFromString(healthConfigType string) C.xpum_health_config_type_t {
+	switch healthConfigType {
+	case "CoreThermalLimit":
+		return C.XPUM_HEALTH_CORE_THERMAL_LIMIT
+	case "MemoryThermalLimit":
+		return C.XPUM_HEALTH_MEMORY_THERMAL_LIMIT
+	case "PowerLimit":
+		return C.XPUM_HEALTH_POWER_LIMIT
+	}
+	panic("invalid health config type: " + healthConfigType)
 }
