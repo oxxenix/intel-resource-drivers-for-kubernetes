@@ -32,12 +32,27 @@ const (
 	HealthcareIntervalFlagMin     = 1
 	HealthcareIntervalFlagMax     = 3600
 	HealthcareIntervalFlagDefault = 5
+
+	// The following limits have no inherent default; a value of 0 means "flag not provided".
+	// We use *Unset naming instead of *Default to avoid implying a meaningful default value.
+	HealthCoreThermalLimitUnset   = 0
+	HealthCoreThermalLimitMin     = 1
+	HealthCoreThermalLimitMax     = 130
+	HealthMemoryThermalLimitUnset = 0
+	HealthMemoryThermalLimitMin   = 1
+	HealthMemoryThermalLimitMax   = 100
+	HealthPowerLimitUnset         = 0
+	HealthPowerLimitMin           = 1
+	HealthPowerLimitMax           = 300
 )
 
 type GPUFlags struct {
 	Partitioning       bool
 	Healthcare         bool
 	HealthcareInterval int
+	CoreThermalLimit   int
+	MemoryThermalLimit int
+	PowerLimit         int
 }
 
 func main() {
@@ -62,6 +77,27 @@ func main() {
 			Value:       HealthcareIntervalFlagDefault,
 			Destination: &gpuFlags.HealthcareInterval,
 			EnvVars:     []string{"HEALTH_INTERVAL"},
+		},
+		&cli.IntFlag{
+			Name:        "core-thermal-limit",
+			Usage:       fmt.Sprintf("Temperature threshold value [%v ~ %v] in degrees Celsius for xpu-smi health config", HealthCoreThermalLimitMin, HealthCoreThermalLimitMax),
+			Value:       HealthCoreThermalLimitUnset,
+			Destination: &gpuFlags.CoreThermalLimit,
+			EnvVars:     []string{"CORE_THERMAL_LIMIT"},
+		},
+		&cli.IntFlag{
+			Name:        "memory-thermal-limit",
+			Usage:       fmt.Sprintf("Temperature threshold value [%v ~ %v] in degrees Celsius for xpu-smi health config", HealthMemoryThermalLimitMin, HealthMemoryThermalLimitMax),
+			Value:       HealthMemoryThermalLimitUnset,
+			Destination: &gpuFlags.MemoryThermalLimit,
+			EnvVars:     []string{"MEMORY_THERMAL_LIMIT"},
+		},
+		&cli.IntFlag{
+			Name:        "power-limit",
+			Usage:       fmt.Sprintf("Power usage threshold value [%v ~ %v] in watts for the xpu-smi health config", HealthPowerLimitMin, HealthPowerLimitMax),
+			Value:       HealthPowerLimitUnset,
+			Destination: &gpuFlags.PowerLimit,
+			EnvVars:     []string{"POWER_LIMIT"},
 		},
 		&cli.BoolFlag{
 			Name:        "partitioning-management",

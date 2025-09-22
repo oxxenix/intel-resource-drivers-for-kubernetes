@@ -13,11 +13,11 @@ import (
 // HealthStatusUpdates is a type alias for map[deviceUID]map[healthType]status.
 type HealthStatusUpdates map[string]map[string]string
 
-func (d *driver) startHealthMonitor(ctx context.Context, intervalSeconds int) {
+func (d *driver) startHealthMonitor(ctx context.Context, gpuFlags *GPUFlags) {
 	// Channel carries per-interval health status deltas keyed by device UID.
 	healthStatusUpdatesCh := make(chan HealthStatusUpdates)
 	goxpusmiCtx, stopMonitor := context.WithCancel(ctx)
-	go d.watchGPUHealthStatuses(goxpusmiCtx, intervalSeconds, healthStatusUpdatesCh)
+	go d.watchGPUHealthStatuses(goxpusmiCtx, gpuFlags, healthStatusUpdatesCh)
 
 	for {
 		select {
@@ -65,7 +65,7 @@ func (d *driver) updateHealth(ctx context.Context, healthStatusUpdates HealthSta
 
 // watchGPUHealthStatuses polls XPUM metric health info and sends per-interval
 // health status deltas to healthStatusUpdatesCh only when there are updates.
-func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int, healthStatusUpdatesCh chan<- HealthStatusUpdates) {
+func (d *driver) watchGPUHealthStatuses(ctx context.Context, gpuFlags *GPUFlags, healthStatusUpdatesCh chan<- HealthStatusUpdates) {
 	nonVerboseDiscovery := false
 	devices, err := goxpusmi.Discover(nonVerboseDiscovery)
 	if err != nil {
@@ -73,7 +73,17 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int
 		return
 	}
 
-	healthCheckInterval := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
+	if gpuFlags.CoreThermalLimit != HealthCoreThermalLimitUnset {
+		d.setHealthConfig("CoreThermalLimit", gpuFlags.CoreThermalLimit)
+	}
+	if gpuFlags.MemoryThermalLimit != HealthMemoryThermalLimitUnset {
+		d.setHealthConfig("MemoryThermalLimit", gpuFlags.MemoryThermalLimit)
+	}
+	if gpuFlags.PowerLimit != HealthPowerLimitUnset {
+		d.setHealthConfig("PowerLimit", gpuFlags.PowerLimit)
+	}
+
+	HealthcareInterval := time.NewTicker(time.Duration(int(gpuFlags.HealthcareInterval)) * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
@@ -81,7 +91,7 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int
 				klog.Errorf("failed to shutdown xpu-smi: %v", err)
 			}
 			return
-		case <-healthCheckInterval.C:
+		case <-HealthcareInterval.C:
 			if updates := goxpusmi.HealthCheck(devices); len(updates) > 0 {
 				healthStatusUpdatesCh <- updates
 			}
@@ -105,4 +115,13 @@ func statusHealth(status string) (health bool) {
 		klog.Error("Unsupported health status value: ", status)
 		panic("invalid status value")
 	}
+}
+
+func (d *driver) setHealthConfig(healthConfigType string, healthConfigValue int) {
+	devices, err := goxpusmi.Discover(false)
+	if err != nil {
+		klog.Errorf("could not discover devices for health config: %v", err)
+		return
+	}
+	goxpusmi.SetHealthConfig(devices, healthConfigType, healthConfigValue)
 }

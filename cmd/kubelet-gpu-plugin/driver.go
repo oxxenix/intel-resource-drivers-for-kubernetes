@@ -129,7 +129,7 @@ PluginDataDirectoryPath: %v`,
 
 	if driver.healthcare {
 		klog.Info("Starting health monitoring")
-		go driver.startHealthMonitor(ctx, gpuFlags.HealthcareInterval)
+		go driver.startHealthMonitor(ctx, gpuFlags)
 	}
 	klog.V(3).Info("Finished creating new driver")
 
