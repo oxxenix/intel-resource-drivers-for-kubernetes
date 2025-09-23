@@ -1,6 +1,6 @@
 ## Requirements
 
-- Kubernetes 1.34+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features
+- Kubernetes v1.34+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
   - Containerd v1.7 or newer
@@ -8,14 +8,14 @@
 ### Enable CDI in Containerd
 
 Containerd has CDI enabled by default since version 2.0. For older versions (1.7 and above)
-CDI has to be enabled in Containerd config by enabling `enable_cdi` and `cdi_specs_dir`.
+CDI has to be enabled in Containerd config by enabling `enable_cdi` and `cdi_spec_dirs`.
 Example `/etc/containerd/config.toml`:
 ```
 version = 2
 [plugins]
   [plugins."io.containerd.grpc.v1.cri"]
     enable_cdi = true
-    cdi_specs_dir = ["/etc/cdi", "/var/run/cdi"]
+    cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
 ```
 
 ## Deploy resource-driver

@@ -14,13 +14,13 @@ Runtime needs to have CDI injection support
 
 ## Enable CDI in Containerd
 
-Containerd config file should have `enable_cdi` and `cdi_specs_dir`. Example `/etc/containerd/config.toml`:
+Containerd config file should have `enable_cdi` and `cdi_spec_dirs`. Example `/etc/containerd/config.toml`:
 ```
 version = 2
 [plugins]
   [plugins."io.containerd.grpc.v1.cri"]
     enable_cdi = true
-    cdi_specs_dir = ["/etc/cdi", "/var/run/cdi"]
+    cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
 ```
 
 ### Determine your go binaries location from `go install --help`, quote:
