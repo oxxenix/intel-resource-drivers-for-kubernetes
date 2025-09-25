@@ -129,24 +129,24 @@ type DeviceInfo struct {
 	// UID is a unique identifier on node, used in ResourceSlice K8s API object as RFC1123-compliant identifier.
 	// Consists of PCIAddress and Model with colons and dots replaced with hyphens, e.g. 0000-01-02-0-0x1234.
 	UID          string            `json:"uid"`
-	PCIAddress   string            `json:"pciaddress"`  // PCI address in Linux DBDF notation for use with sysfs, e.g. 0000:00:00.0
-	Model        string            `json:"model"`       // PCI device ID
-	ModelName    string            `json:"modelname"`   // SKU name, usually Series + Model, e.g. Flex 140
-	FamilyName   string            `json:"familyname"`  // SKU family name, usually Series, e.g. Flex or Max
-	CardIdx      uint64            `json:"cardidx"`     // card device number (e.g. 0 for /dev/dri/card0)
-	RenderdIdx   uint64            `json:"renderdidx"`  // renderD device number (e.g. 128 for /dev/dri/renderD128)
-	MemoryMiB    uint64            `json:"memorymib"`   // in MiB
-	Millicores   uint64            `json:"millicores"`  // [0-1000] where 1000 means whole GPU.
-	DeviceType   string            `json:"devicetype"`  // gpu, vf, any
-	MaxVFs       uint64            `json:"maxvfs"`      // if enabled, non-zero maximum amount of VFs
-	ParentUID    string            `json:"parentuid"`   // uid of gpu device where VF is
-	VFProfile    string            `json:"vfprofile"`   // name of the SR-IOV profile
-	VFIndex      uint64            `json:"vfindex"`     // 0-based PCI index of the VF on the GPU, DRM indexing starts with 1
-	Provisioned  bool              `json:"provisioned"` // true if the SR-IOV VF is configured and enabled
-	Driver       string            `json:"driver"`      // i915 | xe
-	PCIRoot      string            `json:"pciroot"`     // PCI Root of the device
-	Healthy      bool              `json:"healthy"`     // Health status of the device
-	HealthStatus map[string]string `json:"healthtype"`  // Detailed per-category health status information
+	PCIAddress   string            `json:"pciaddress"`   // PCI address in Linux DBDF notation for use with sysfs, e.g. 0000:00:00.0
+	Model        string            `json:"model"`        // PCI device ID
+	ModelName    string            `json:"modelname"`    // SKU name, usually Series + Model, e.g. Flex 140
+	FamilyName   string            `json:"familyname"`   // SKU family name, usually Series, e.g. Flex or Max
+	CardIdx      uint64            `json:"cardidx"`      // card device number (e.g. 0 for /dev/dri/card0)
+	RenderdIdx   uint64            `json:"renderdidx"`   // renderD device number (e.g. 128 for /dev/dri/renderD128)
+	MemoryMiB    uint64            `json:"memorymib"`    // in MiB
+	Millicores   uint64            `json:"millicores"`   // [0-1000] where 1000 means whole GPU.
+	DeviceType   string            `json:"devicetype"`   // gpu, vf, any
+	MaxVFs       uint64            `json:"maxvfs"`       // if enabled, non-zero maximum amount of VFs
+	ParentUID    string            `json:"parentuid"`    // uid of gpu device where VF is
+	VFProfile    string            `json:"vfprofile"`    // name of the SR-IOV profile
+	VFIndex      uint64            `json:"vfindex"`      // 0-based PCI index of the VF on the GPU, DRM indexing starts with 1
+	Provisioned  bool              `json:"provisioned"`  // true if the SR-IOV VF is configured and enabled
+	Driver       string            `json:"driver"`       // i915 | xe
+	PCIRoot      string            `json:"pciroot"`      // PCI Root of the device
+	Healthy      bool              `json:"healthy"`      // Health status of the device
+	HealthStatus map[string]string `json:"healthstatus"` // Detailed per-category health status information
 }
 
 func (g DeviceInfo) CDIName() string {

@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -138,7 +139,14 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 		if !gpu.Healthy {
 			// e.g. HealthIssues-memorytemperature_coretemperature:NoExecute
 			// The format will change in K8s 1.35+.
-			key := fmt.Sprintf("HealthIssues-%v", gpu.HealthStatus)
+			unhealthyTypes := []string{}
+			for healthType, healthStatus := range gpu.HealthStatus {
+				if !statusHealth(healthStatus) {
+					unhealthyTypes = append(unhealthyTypes, healthType)
+				}
+			}
+			sort.Strings(unhealthyTypes)
+			key := "HealthIssues-" + strings.Join(unhealthyTypes, "_")
 			key = strings.ReplaceAll(key, "[", "")
 			key = strings.ReplaceAll(key, "]", "")
 			key = strings.ReplaceAll(key, ",", "_")
