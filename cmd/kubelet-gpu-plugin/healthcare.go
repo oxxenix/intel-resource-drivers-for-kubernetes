@@ -74,13 +74,13 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, gpuFlags *GPUFlags,
 	}
 
 	if gpuFlags.CoreThermalLimit != HealthCoreThermalLimitUnset {
-		d.setHealthConfig("CoreThermalLimit", gpuFlags.CoreThermalLimit)
+		goxpusmi.SetHealthConfig(devices, "CoreThermalLimit", gpuFlags.CoreThermalLimit)
 	}
 	if gpuFlags.MemoryThermalLimit != HealthMemoryThermalLimitUnset {
-		d.setHealthConfig("MemoryThermalLimit", gpuFlags.MemoryThermalLimit)
+		goxpusmi.SetHealthConfig(devices, "MemoryThermalLimit", gpuFlags.MemoryThermalLimit)
 	}
 	if gpuFlags.PowerLimit != HealthPowerLimitUnset {
-		d.setHealthConfig("PowerLimit", gpuFlags.PowerLimit)
+		goxpusmi.SetHealthConfig(devices, "PowerLimit", gpuFlags.PowerLimit)
 	}
 
 	HealthcareInterval := time.NewTicker(time.Duration(int(gpuFlags.HealthcareInterval)) * time.Second)
@@ -115,13 +115,4 @@ func statusHealth(status string) (health bool) {
 		klog.Error("Unsupported health status value: ", status)
 		panic("invalid status value")
 	}
-}
-
-func (d *driver) setHealthConfig(healthConfigType string, healthConfigValue int) {
-	devices, err := goxpusmi.Discover(false)
-	if err != nil {
-		klog.Errorf("could not discover devices for health config: %v", err)
-		return
-	}
-	goxpusmi.SetHealthConfig(devices, healthConfigType, healthConfigValue)
 }
