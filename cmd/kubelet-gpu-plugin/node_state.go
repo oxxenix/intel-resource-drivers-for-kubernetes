@@ -38,9 +38,10 @@ import (
 
 type nodeState struct {
 	*helpers.NodeState
+	ignoreHealthWarning bool // true if Warning status means healthy, false otherwise.
 }
 
-func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimFilePath string, sysfsRoot string, nodeName string) (*helpers.NodeState, error) {
+func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimFilePath string, sysfsRoot string, nodeName string, ignoreHealthWarning bool) (*helpers.NodeState, error) {
 	for ddev := range detectedDevices {
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
@@ -81,6 +82,7 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 			SysfsRoot:              sysfsRoot,
 			NodeName:               nodeName,
 		},
+		ignoreHealthWarning: ignoreHealthWarning,
 	}
 
 	allocatableDevices, ok := state.Allocatable.(map[string]*device.DeviceInfo)
@@ -141,7 +143,7 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 			// The format will change in K8s 1.35+.
 			unhealthyTypes := []string{}
 			for healthType, healthStatus := range gpu.HealthStatus {
-				if !statusHealth(healthStatus) {
+				if !statusHealth(healthStatus, s.ignoreHealthWarning) {
 					unhealthyTypes = append(unhealthyTypes, healthType)
 				}
 			}

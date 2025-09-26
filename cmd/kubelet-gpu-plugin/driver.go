@@ -35,10 +35,11 @@ import (
 )
 
 type driver struct {
-	client     coreclientset.Interface
-	state      *helpers.NodeState
-	helper     *kubeletplugin.Helper
-	healthcare bool
+	client              coreclientset.Interface
+	state               *helpers.NodeState
+	helper              *kubeletplugin.Helper
+	healthcare          bool
+	ignoreHealthWarning bool // true if Warning status means healthy, false otherwise. Default: true
 }
 
 func (d *driver) PublishResourceSlice(ctx context.Context) error {
@@ -79,7 +80,8 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
 			NodeName:               config.CommonFlags.NodeName,
 		},
-		healthcare: gpuFlags.Healthcare,
+		healthcare:          gpuFlags.Healthcare,
+		ignoreHealthWarning: gpuFlags.IgnoreHealthWarning,
 	}
 
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
@@ -97,7 +99,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	}
 
 	klog.V(3).Info("Creating new NodeState")
-	driver.state, err = newNodeState(detectedDevices, config.CommonFlags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName)
+	driver.state, err = newNodeState(detectedDevices, config.CommonFlags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName, gpuFlags.IgnoreHealthWarning)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
@@ -156,7 +158,7 @@ func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.Re
 		return claimPreparation
 	}
 
-	state := nodeState{d.state}
+	state := nodeState{d.state, d.ignoreHealthWarning}
 	if err := state.Prepare(ctx, claim); err != nil {
 		return kubeletplugin.PrepareResult{
 			Err: fmt.Errorf("error preparing devices for claim %v: %v", claim.UID, err),

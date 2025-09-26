@@ -51,7 +51,7 @@ func (d *driver) updateHealth(ctx context.Context, healthStatusUpdates HealthSta
 		}
 		for healthType, status := range healthStatusUpdates[deviceUID] {
 			foundDevice.HealthStatus[healthType] = status
-			health := statusHealth(status)
+			health := statusHealth(status, d.ignoreHealthWarning)
 			isHealthy = isHealthy && health
 		}
 		foundDevice.Healthy = isHealthy
@@ -100,12 +100,12 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, gpuFlags *GPUFlags,
 }
 
 // statusHealth returns the health based on status value.
-func statusHealth(status string) (health bool) {
+func statusHealth(status string, ignoreHealthWarning bool) (health bool) {
 	switch status {
 	case "Critical":
 		return false
 	case "Warning":
-		return true
+		return ignoreHealthWarning
 	case "OK":
 		return true
 	case "Unknown":

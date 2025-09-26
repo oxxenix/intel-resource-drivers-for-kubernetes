@@ -27,11 +27,12 @@ import (
 )
 
 const (
-	PartitioningDefault           = false
-	HealthCareFlagDefault         = false
-	HealthcareIntervalFlagMin     = 1
-	HealthcareIntervalFlagMax     = 3600
-	HealthcareIntervalFlagDefault = 5
+	PartitioningDefault            = false
+	HealthCareFlagDefault          = false
+	IgnoreHealthWarningFlagDefault = true
+	HealthcareIntervalFlagMin      = 1
+	HealthcareIntervalFlagMax      = 3600
+	HealthcareIntervalFlagDefault  = 5
 
 	// The following limits have no inherent default; a value of 0 means "flag not provided".
 	// We use *Unset naming instead of *Default to avoid implying a meaningful default value.
@@ -47,12 +48,13 @@ const (
 )
 
 type GPUFlags struct {
-	Partitioning       bool
-	Healthcare         bool
-	HealthcareInterval int
-	CoreThermalLimit   int
-	MemoryThermalLimit int
-	PowerLimit         int
+	Partitioning        bool
+	Healthcare          bool
+	IgnoreHealthWarning bool // true if Warning status means healthy, false otherwise. Default: true
+	HealthcareInterval  int
+	CoreThermalLimit    int
+	MemoryThermalLimit  int
+	PowerLimit          int
 }
 
 func main() {
@@ -69,6 +71,14 @@ func main() {
 			Value:       HealthCareFlagDefault,
 			Destination: &gpuFlags.Healthcare,
 			EnvVars:     []string{"HEALTH_MONITORING"},
+		},
+		&cli.BoolFlag{
+			Name:        "ignore-health-warning",
+			Aliases:     []string{"w"},
+			Usage:       "Do not taint device when Warning level health status is reported. Default: true",
+			Value:       IgnoreHealthWarningFlagDefault,
+			Destination: &gpuFlags.IgnoreHealthWarning,
+			EnvVars:     []string{"IGNORE_HEALTH_WARNING"},
 		},
 		&cli.IntFlag{
 			Name:        "health-interval",
