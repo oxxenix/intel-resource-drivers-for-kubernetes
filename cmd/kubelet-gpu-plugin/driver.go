@@ -35,18 +35,16 @@ import (
 )
 
 type driver struct {
-	client              coreclientset.Interface
-	state               *helpers.NodeState
-	helper              *kubeletplugin.Helper
-	healthcare          bool
-	ignoreHealthWarning bool // true if Warning status means healthy, false otherwise. Default: true
+	client     coreclientset.Interface
+	state      *nodeState
+	helper     *kubeletplugin.Helper
+	healthcare bool
 }
 
 func (d *driver) PublishResourceSlice(ctx context.Context) error {
-	state := nodeState{NodeState: d.state}
-	resources := state.GetResources()
-	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[state.NodeName].Slices[0].Devices))
-	klog.V(5).Infof("devices: %+v", resources.Pools[state.NodeName].Slices[0].Devices)
+	resources := d.state.GetResources()
+	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[d.state.NodeName].Slices[0].Devices))
+	klog.V(5).Infof("devices: %+v", resources.Pools[d.state.NodeName].Slices[0].Devices)
 	if err := d.helper.PublishResources(ctx, resources); err != nil {
 		return fmt.Errorf("error publishing resources: %v", err)
 	}
@@ -75,13 +73,15 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 
 	driver := &driver{
 		client: config.Coreclient,
-		state: &helpers.NodeState{
-			PreparedClaimsFilePath: path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName),
-			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
-			NodeName:               config.CommonFlags.NodeName,
+		state: &nodeState{
+			NodeState: &helpers.NodeState{
+				PreparedClaimsFilePath: path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName),
+				SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
+				NodeName:               config.CommonFlags.NodeName,
+			},
+			ignoreHealthWarning: gpuFlags.IgnoreHealthWarning,
 		},
-		healthcare:          gpuFlags.Healthcare,
-		ignoreHealthWarning: gpuFlags.IgnoreHealthWarning,
+		healthcare: gpuFlags.Healthcare,
 	}
 
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
@@ -158,8 +158,7 @@ func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.Re
 		return claimPreparation
 	}
 
-	state := nodeState{d.state, d.ignoreHealthWarning}
-	if err := state.Prepare(ctx, claim); err != nil {
+	if err := d.state.Prepare(ctx, claim); err != nil {
 		return kubeletplugin.PrepareResult{
 			Err: fmt.Errorf("error preparing devices for claim %v: %v", claim.UID, err),
 		}

@@ -51,7 +51,7 @@ func (d *driver) updateHealth(ctx context.Context, healthStatusUpdates HealthSta
 		}
 		for healthType, status := range healthStatusUpdates[deviceUID] {
 			foundDevice.HealthStatus[healthType] = status
-			health := statusHealth(status, d.ignoreHealthWarning)
+			health := d.state.StatusHealth(status)
 			isHealthy = isHealthy && health
 		}
 		foundDevice.Healthy = isHealthy
@@ -96,23 +96,5 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, gpuFlags *GPUFlags,
 				healthStatusUpdatesCh <- updates
 			}
 		}
-	}
-}
-
-// statusHealth returns the health based on status value.
-func statusHealth(status string, ignoreHealthWarning bool) (health bool) {
-	switch status {
-	case "Critical":
-		return false
-	case "Warning":
-		return ignoreHealthWarning
-	case "OK":
-		return true
-	case "Unknown":
-		return true
-	default:
-		// This is unexpected, we should never get here.
-		klog.Error("Unsupported health status value: ", status)
-		panic("invalid status value")
 	}
 }
