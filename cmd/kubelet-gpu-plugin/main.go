@@ -75,7 +75,8 @@ func main() {
 		&cli.BoolFlag{
 			Name:        "ignore-health-warning",
 			Aliases:     []string{"w"},
-			Usage:       "Do not taint device when Warning level health status is reported. Default: true",
+			// https://github.com/intel/xpumanager/blob/master/core/src/device/gpu/gpu_device_stub.cpp#L4142
+			Usage:       "Ignore temperature & power thresholds and degraded memory health warnings (= react only to critical memory state). Default: true",
 			Value:       IgnoreHealthWarningFlagDefault,
 			Destination: &gpuFlags.IgnoreHealthWarning,
 			EnvVars:     []string{"IGNORE_HEALTH_WARNING"},
