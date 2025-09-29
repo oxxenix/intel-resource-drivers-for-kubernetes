@@ -39,7 +39,7 @@ type nodeState struct {
 	*helpers.NodeState
 }
 
-func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimsFilePath string, nodeName string) (*helpers.NodeState, error) {
+func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimsFilePath string, nodeName string) (*nodeState, error) {
 	for ddev := range detectedDevices {
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
@@ -99,7 +99,7 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 		klog.V(5).Infof("Allocatable device: %v : %+v", duid, ddev)
 	}
 
-	return state.NodeState, nil
+	return &state, nil
 }
 
 func (s *nodeState) GetResources() resourceslice.DriverResources {

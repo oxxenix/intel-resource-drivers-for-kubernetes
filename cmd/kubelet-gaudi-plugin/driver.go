@@ -36,7 +36,7 @@ import (
 
 type driver struct {
 	client coreclientset.Interface
-	state  *helpers.NodeState
+	state  nodeState
 	helper *kubeletplugin.Helper
 	// If HLML monitoring is running - it will need to be stopped.
 	hlmlShutdown context.CancelFunc
@@ -81,7 +81,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	}
 
 	driver := &driver{
-		state:  state,
+		state:  *state,
 		client: config.Coreclient,
 	}
 
@@ -148,8 +148,7 @@ func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.Re
 		return claimPreparation
 	}
 
-	state := nodeState{d.state}
-	if err := state.Prepare(ctx, claim); err != nil {
+	if err := d.state.Prepare(ctx, claim); err != nil {
 		return kubeletplugin.PrepareResult{
 			Err: err,
 		}
@@ -183,10 +182,9 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 }
 
 func (d *driver) PublishResourceSlice(ctx context.Context) error {
-	state := nodeState{NodeState: d.state}
-	resources := state.GetResources()
-	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[state.NodeName].Slices[0].Devices))
-	klog.V(5).Infof("devices: %+v", resources.Pools[state.NodeName].Slices[0].Devices)
+	resources := d.state.GetResources()
+	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[d.state.NodeName].Slices[0].Devices))
+	klog.V(5).Infof("devices: %+v", resources.Pools[d.state.NodeName].Slices[0].Devices)
 	if err := d.helper.PublishResources(ctx, resources); err != nil {
 		return fmt.Errorf("error publishing resources: %v", err)
 	}

@@ -48,8 +48,6 @@ func (d *driver) initHLML() error {
 		return fmt.Errorf("failed to get device count: %v", ret)
 	}
 
-	state := nodeState{d.state}
-
 	for i := uint(0); i < count; i++ {
 		hlmlDevice, err := hlml.DeviceHandleByIndex(i)
 		if err != nil {
@@ -66,7 +64,7 @@ func (d *driver) initHLML() error {
 			return fmt.Errorf("failed to get PCI bus ID of device at index %d: %v", i, err)
 		}
 
-		gaudi := state.AllocatableByPCIAddress(pciAddress)
+		gaudi := d.state.AllocatableByPCIAddress(pciAddress)
 		if gaudi == nil {
 			return fmt.Errorf("could not find allocatable device with PCI address %v", pciAddress)
 		}
