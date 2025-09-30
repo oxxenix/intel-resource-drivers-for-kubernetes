@@ -10,7 +10,7 @@ kubernetesVersion: v1.34.0
 apiServer:
   extraArgs:
   - name: feature-gates
-    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true,DRAResourceClaimDeviceStatus=true
+    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true,DRAResourceClaimDeviceStatus=true,ResourceHealthStatus=true
 clusterName: kubernetes
 controllerManager:
   extraArgs:
@@ -27,3 +27,4 @@ kind: KubeletConfiguration
 featureGates:
   DynamicResourceAllocation: true
   DRAExtendedResource: true
+  ResourceHealthStatus: true

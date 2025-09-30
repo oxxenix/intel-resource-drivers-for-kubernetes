@@ -133,18 +133,6 @@ func Discover(verbose bool) (map[string]XPUSMIDeviceDetails, error) {
 
 	for i := 0; i < int(count); i++ {
 		device := devices[i]
-		if verbose {
-			fmt.Printf("Device %d\n", i)
-			fmt.Printf("\tuuid: %v\n", C.GoString(&device.uuid[0]))
-			fmt.Printf("\tdeviceId: %v\n", device.deviceId)
-			fmt.Printf("\tdeviceName: %v\n", C.GoString(&device.deviceName[0]))
-			fmt.Printf("\tPCIDeviceId: %v\n", C.GoString(&device.PCIDeviceId[0]))
-			fmt.Printf("\tPCIBDFAddress: %v\n", C.GoString(&device.PCIBDFAddress[0]))
-			fmt.Printf("\tVendorName: %v\n", C.GoString(&device.VendorName[0]))
-			fmt.Printf("\tfunctionType: %v\n", device.functionType)
-			fmt.Printf("\tdrmDevice: %v\n", C.GoString(&device.drmDevice[0]))
-		}
-
 		newDeviceDetails := XPUSMIDeviceDetails{
 			UUID:        C.GoString(&device.uuid[0]),
 			DeviceId:    int(device.deviceId),
@@ -156,6 +144,17 @@ func Discover(verbose bool) (map[string]XPUSMIDeviceDetails, error) {
 			FunctionType: int(device.functionType),
 			DRMDevice:    C.GoString(&device.drmDevice[0]),
 		}
+		// HACK:
+		// xpu-smi v1.3.1 could omit leading zeros in PCIDeviceId, e.g. 0xbda instead of 0x0bda.
+		if len(newDeviceDetails.PCIDeviceId) < 6 {
+			fmt.Printf("WARNING: PCIDeviceId is shorter than expected: '%s'. Prepending zeros.\n", newDeviceDetails.PCIDeviceId)
+			newDeviceDetails.PCIDeviceId = fmt.Sprintf("0x%04s", newDeviceDetails.PCIDeviceId[2:])
+		}
+
+		if verbose {
+			fmt.Printf("Device %+v\n", newDeviceDetails)
+		}
+
 		GetAndPrintDeviceProperties(device.deviceId, &newDeviceDetails, verbose)
 
 		deviceDetails[newDeviceDetails.PCIAddress] = newDeviceDetails
