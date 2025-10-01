@@ -5,7 +5,7 @@ CAUTION: This is an beta / non-production software, do not use on production clu
 ## About resource driver
 
 With structured parameters (K8s v1.31+), the DRA driver publishes ResourceSlice, scheduler allocates
-the resoruces and DRA driver kubelet-plugin ensures that the allocated devices are prepared
+the resources and DRA driver kubelet-plugin ensures that the allocated devices are prepared
 and available for Pods.
 
 DRA API graduated to GA with v1 API in K8s v1.34. Latest DRA drivers support only K8s v1.34+.
