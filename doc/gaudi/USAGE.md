@@ -63,7 +63,7 @@ rpl-s-gaudi.intel.com-x8m4h   rpl-s   gaudi.intel.com   rpl-s   4d1h
 Example contents of the ResourceSlice object:
 ```bash
 $ kubectl get resourceSlices/rpl-s-gaudi.intel.com-x8m4h -o yaml
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceSlice
 metadata:
   creationTimestamp: "2024-09-23T13:03:21Z"
@@ -143,7 +143,7 @@ to Pod spec to be used in container. The Intel Gaudi resource driver will take c
 suitable device to the Resource Claim when Kubernetes is scheduling the Pod.
 
 ```yaml
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaim
 metadata:
   name: claim1
@@ -151,7 +151,8 @@ spec:
   devices:
     requests:
     - name: gaudi
-      deviceClassName: gaudi.intel.com
+      exactly:
+        deviceClassName: gaudi.intel.com
 ---
 apiVersion: v1
 kind: Pod
@@ -210,7 +211,7 @@ and needs explicit deletion.
 
 Example of Pod with generated Resource Claim:
 ```YAML
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: claim1
@@ -219,7 +220,8 @@ spec:
     devices:
       requests:
       - name: gaudi
-        deviceClassName: gaudi.intel.com
+        exactly:
+          deviceClassName: gaudi.intel.com
 ---
 apiVersion: v1
 kind: Pod
@@ -248,7 +250,7 @@ used in CEL.
 
 Example of Resource Claim requesting 2 Gaudi2 accelerators:
 ```yaml
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaim
 metadata:
   name: claim1
@@ -257,10 +259,11 @@ spec:
     requests:
     - name: gaudi
       deviceClassName: gaudi.intel.com
-      count: 2
-      selectors:
-      - cel:
-          expression: device.attributes["gaudi.intel.com"].model == 'Gaudi2'
+      exactly:
+        count: 2
+        selectors:
+        - cel:
+            expression: device.attributes["gaudi.intel.com"].model == 'Gaudi2'
 ```
 
 ## Gaudi monitor deployment
