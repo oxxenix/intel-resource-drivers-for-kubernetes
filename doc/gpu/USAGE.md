@@ -319,4 +319,4 @@ In K8s v1.33 [DeviceTaintRule](https://kubernetes.io/docs/concepts/scheduling-ev
 ## Known issues
 
 - In K8s v1.34.0 - v1.34.1 the kubelet might lose GRPC connection to a DRA driver after 30 minutes of inactivity. To prevent this situation, enable `ResourceHealthStatus` feature-gate in Kubelet and api-server.
-- In K8s v1.34-0 - v1.34.1 the Device Taint Eviction Controller can evict a Pod with a DeviceTaintToleration immediately after successful scheduling. Solution is to upgrade to a newer version.
+- In K8s v1.34-0 - v1.34.1 the Device Taint Eviction Controller can evict a Pod with a DeviceTaintToleration immediately after successful scheduling. Solution is to upgrade the cluster to a newer K8s version.
