@@ -312,7 +312,7 @@ Unlike with normal GPU ResourceClaims:
 
 ## Health monitoring support
 
-Starting from v0.9.0 GPU DRA driver supports health monitoring with `-m` command-line parameter (disabled in default deployment configuration) through [xpu-smi](https://github.com/intel/xpumanager) library. When GPU accelerator becomes unhealthy, the ResourceSlice is updated: respective device's `healthy` field changed to false. If `DRADeviceTaints` feature gate is enabled in the cluster, [DeviceTaint](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) will be added to the unhealthy device's entry in ResourceSlice with a health category indication.
+Starting from v0.9.0 GPU DRA driver supports health monitoring with `-m` command-line parameter (disabled in default deployment configuration) through [xpu-smi](https://github.com/intel/xpumanager) library. When it deems GPU accelerator as unhealthy, `healthy` field for corresponding device in `ResourceSlice` is set as `false`. If `DRADeviceTaints` feature gate is enabled in the cluster, health category [DeviceTaint](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) will be added to the unhealthy device's entry in `ResourceSlice`.
 
 In K8s v1.33 [DeviceTaintRule](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) (requires enabling feature gate) concept was introduced that allows scheduler to handle ResourceSlice devices similarly to how K8s Node Taints and Tolerations allow. Cluster admins can create such DeviceTaintRule to prevent workloads being scheduled and / or executed on a particular GPU.
 
