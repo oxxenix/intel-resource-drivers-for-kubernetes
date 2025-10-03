@@ -38,11 +38,6 @@ import (
 	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
-const (
-	NoHealthcare   = false
-	WithHealthcare = true
-)
-
 func TestGaudiFakeSysfs(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 	defer testhelpers.CleanupTest(t, "TestGaudiFakeSysfs", testDirs.TestRoot)
@@ -68,13 +63,8 @@ func TestGaudiFakeSysfs(t *testing.T) {
 	}
 }
 
-func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver, error) {
+func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 	nodeName := "node1"
-	gaudiFlags := GaudiFlags{
-		Healthcare:         healthcare,
-		HealthcareInterval: 1,
-	}
-
 	config := &helpers.Config{
 		CommonFlags: &helpers.Flags{
 			NodeName:                  nodeName,
@@ -83,7 +73,7 @@ func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver,
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
 		Coreclient:  kubefake.NewSimpleClientset(),
-		DriverFlags: &gaudiFlags,
+		DriverFlags: nil,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -217,7 +207,7 @@ func TestGaudiPrepareResourceClaims(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs, NoHealthcare)
+		driver, driverErr := getFakeDriver(testDirs)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
@@ -340,7 +330,7 @@ func TestGaudiUnprepareResourceClaims(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs, NoHealthcare)
+		driver, driverErr := getFakeDriver(testDirs)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue

@@ -13,7 +13,7 @@ spec:
         # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#termination-with-sidecars
         # which allows proper fake root cleanup.
         restartPolicy: Always
-        image: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-device-faker:latest
+        image: registry.local/intel-device-faker:latest
         imagePullPolicy: Always
         command: ["/device-faker", "gaudi", "-t", "/opt/templates/gaudi-template.json", "-r", "-d", "/tmp/fake-root", "-c"]
         volumeMounts:
@@ -27,25 +27,28 @@ spec:
             add:  [ "MKNOD" ]
       containers:
       - name: kubelet-plugin
-        # `-m` is removed because there is no real HW and HLML lib.
         # `-v 5` is added for more verbose logging.
         command: ["/kubelet-gaudi-plugin", "-v", "5"]
-        image: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gaudi-resource-driver:latest
+        image: intel/intel-gaudi-resource-driver:latest
+        imagePullPolicy: Always
         env:
         - name: SYSFS_ROOT
-          value: "/fake-sysfs"
+          value: "/sysfs"
+        - name: DEVFS_ROOT
+          value: "/tmp/fake-root/dev"
         volumeMounts:
         - name: fake-root
-          mountPath: /fake-sysfs
+          mountPath: /sysfs
           subPath: sysfs
         - name: fake-root
-          mountPath: /fake-dev/dri
-          subPath: dev/dri
+          mountPath: /tmp/fake-root/dev
+          subPath: dev
         - name: fake-root
-          mountPath: /fake-cdi
+          mountPath: /etc/cdi
           subPath: cdi
         securityContext:
           privileged: false
       volumes:
       - name: fake-root
-        emptyDir: {}
+        hostPath:
+          path: /tmp/fake-root

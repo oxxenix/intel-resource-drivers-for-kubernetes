@@ -173,7 +173,7 @@ func TestDiscoverDevices(t *testing.T) {
 					SysfsRoot,
 					DevfsRoot,
 					device.DevicesInfo{
-						"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, ModuleIdx: 0, UID: "0000-0f-00-0-0x1020", Healthy: true},
+						"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, ModuleIdx: 0, UID: "0000-0f-00-0-0x1020"},
 					},
 					false,
 				); err != nil {
@@ -189,7 +189,6 @@ func TestDiscoverDevices(t *testing.T) {
 					DeviceIdx:  0,
 					ModuleIdx:  0,
 					UID:        "0000-0f-00-0-0x1020",
-					Healthy:    true,
 					ModelName:  "Gaudi2",
 				},
 			},

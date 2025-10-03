@@ -79,7 +79,6 @@ func scanDevicesFromDriverDirFiles(driverDirFiles []os.DirEntry, sysfsDriverDir 
 			PCIAddress: devicePCIAddress,
 			Model:      deviceId,
 			DeviceIdx:  0,
-			Healthy:    true,
 		}
 		newDeviceInfo.SetModelName()
 

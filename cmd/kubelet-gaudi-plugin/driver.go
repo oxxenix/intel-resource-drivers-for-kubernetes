@@ -38,36 +38,12 @@ type driver struct {
 	client coreclientset.Interface
 	state  nodeState
 	helper *kubeletplugin.Helper
-	// If HLML monitoring is running - it will need to be stopped.
-	hlmlShutdown context.CancelFunc
-}
-
-func getGaudiFlags(someFlags interface{}) (*GaudiFlags, error) {
-	gaudiFlags, OK := someFlags.(*GaudiFlags)
-	if !OK {
-		return &GaudiFlags{}, fmt.Errorf("could not parse driver flags as GaudiFlags")
-	}
-
-	klog.V(5).Infof("Gaudi parameters parsing OK: %+v", gaudiFlags)
-
-	if gaudiFlags.HealthcareInterval < HealthcareIntervalFlagMin || gaudiFlags.HealthcareInterval > HealthcareIntervalFlagMax {
-		return gaudiFlags, fmt.Errorf("unsupported health interval value %v. Should be [%v~%v]",
-			gaudiFlags.HealthcareInterval, HealthcareIntervalFlagMin, HealthcareIntervalFlagMax)
-	}
-
-	return gaudiFlags, nil
 }
 
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
 	sysfsDir := helpers.GetSysfsRoot(device.SysfsAccelPath)
 	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
-
-	gaudiFlags, err := getGaudiFlags(config.DriverFlags)
-	if err != nil {
-		klog.Errorf("FATAL: %v", err)
-		return nil, fmt.Errorf("FATAL: %v", err)
-	}
 
 	detectedDevices := discovery.DiscoverDevices(sysfsDir, device.DefaultNamingStyle)
 	if len(detectedDevices) == 0 {
@@ -106,22 +82,8 @@ PluginDataDirectoryPath: %v`,
 
 	driver.helper = helper
 
-	// Init HLML healthcare to get details needed for health monitor.
-	if gaudiFlags.Healthcare {
-		if err := driver.initHLML(); err != nil {
-			return nil, fmt.Errorf("failed to initialize HLML for health monitoring: %v", err)
-		}
-	}
-
 	if err := driver.PublishResourceSlice(ctx); err != nil {
 		return nil, fmt.Errorf("startup error: %v", err)
-	}
-
-	if gaudiFlags.Healthcare {
-		// startHealthMonitor listens for unhealthy UIDs, has to run in a routine.
-		hlmlListenerContext, hlmlListenerCancel := context.WithCancel(ctx)
-		driver.hlmlShutdown = hlmlListenerCancel
-		go driver.startHealthMonitor(hlmlListenerContext, gaudiFlags.HealthcareInterval)
 	}
 
 	klog.V(3).Info("Finished creating new driver")
@@ -195,4 +157,12 @@ func (d *driver) PublishResourceSlice(ctx context.Context) error {
 func (d *driver) HandleError(ctx context.Context, err error, message string) {
 	// TODO: FIXME: error is ignored ATM, handle it properly.
 	klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error")
+}
+
+func (d *driver) Shutdown(ctx context.Context) error {
+	klog.V(5).Info("Shutting down driver")
+
+	d.helper.Stop()
+
+	return nil
 }

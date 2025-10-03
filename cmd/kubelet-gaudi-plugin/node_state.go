@@ -119,12 +119,6 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 				"pciRoot": {
 					StringValue: &gaudi.PCIRoot,
 				},
-				"serial": {
-					StringValue: &gaudi.Serial,
-				},
-				"healthy": {
-					BoolValue: &gaudi.Healthy,
-				},
 			},
 		}
 		devices = append(devices, newDevice)

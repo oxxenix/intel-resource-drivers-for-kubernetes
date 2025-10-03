@@ -3,7 +3,6 @@ module github.com/intel/intel-resource-drivers-for-kubernetes
 go 1.24.2
 
 require (
-	github.com/HabanaAI/gohlml v1.17.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
