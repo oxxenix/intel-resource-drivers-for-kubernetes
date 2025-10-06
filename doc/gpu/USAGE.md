@@ -156,9 +156,9 @@ crw-rw-rw-    1 root     root      226, 128 Sep 27 09:17 renderD128
 
 # Notable changes
 
-In K8s v1.34 resource.k8s.io/v1 API changed ResourceClaim syntax compared to resource.k8s.io/v1beta1,
-allowing device request to be specified `exactly` or as a priority-ordered list using `firstAvailable`
-request type (latter requires `DRAPrioritizedList` [feature gate](../CLUSTER_SETUP.md#useful-and-required-featuregates) enabled).
+K8s v1.34 resource.k8s.io/v1 API changed ResourceClaim syntax compared to resource.k8s.io/v1beta1.
+In v1, device request must be specified either as `exactly`, or as a priority-ordered list using `firstAvailable`
+request type.  Using latter requires `DRAPrioritizedList` [feature gate](../CLUSTER_SETUP.md#useful-and-required-featuregates) to be enabled.
 
 `exactly`-specified request is allocated by the kube-scheduler as-is. The`firstAvailable` list of requests
 is processed by the scheduler sequentially until the currently processed request is possible to allocate.
