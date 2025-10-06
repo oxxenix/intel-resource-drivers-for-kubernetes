@@ -18,18 +18,6 @@ version = 2
     cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
 ```
 
-### Useful and required [FeatureGates](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/)
-
-| FeatureGate | Components to enable in | Details | Use case |
-|-------------|-------------------------|---------|----------|
-| DRAExtendedResource | api-server, scheduler, kubelet | [KEP-5004 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5004-dra-extended-resource) | Allows allocating DRA resources through `resources` section similar to native resources, [example](../../deployments/gpu/examples/deployment-extended-resources.yaml). |
-| DRADeviceTaints | api-server, controller-manager, scheduler | [KEP-5055 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5055-dra-device-taints-and-tolerations) | Allows restricting scheduling and execution of Pods on tainted DRA devices. |
-| DRAAdminAccess | kube-apiserver, controller-manager, scheduler | [KEP-5018 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/5018-dra-adminaccess) | Allows administrative access in parallel to workload access, e.g. maintenance, monitoring. |
-| DRAPartitionableDevices | api-server, scheduler | [KEP-4815 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4815-dra-partitionable-devices) | Allows partial allocations of DRA resources. |
-| DRAResourceClaimDeviceStatus | api-server | [KEP-4817 link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/4817-resource-claim-device-status) | Adds DRA devices' status to the ResourceClaim status. |
-| ResourceHealthStatus | api-server, kubelet | [KEP-4680 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4680-add-resource-health-to-pod-status) | Adds DRA devices' status to the Pod status. |
-
-
 ## Deploy resource-driver
 
 ### Helm Chart
@@ -165,6 +153,15 @@ crw-rw-rw-    1 root     root      226,   0 Sep 27 09:17 card0
 crw-rw-rw-    1 root     root      226, 128 Sep 27 09:17 renderD128
 
 ```
+
+# Notable changes
+
+In K8s v1.34 resource.k8s.io/v1 API changed ResourceClaim syntax compared to resource.k8s.io/v1beta1,
+allowing device request to be specified `exactly` or as a priority-ordered list using `firstAvailable`
+request type (latter requires `DRAPrioritizedList` [feature gate](../CLUSTER_SETUP.md#useful-and-required-featuregates) enabled).
+
+`exactly`-specified request is allocated by the kube-scheduler as-is. The`firstAvailable` list of requests
+is processed by the scheduler sequentially until the currently processed request is possible to allocate.
 
 ## Requesting resources
 

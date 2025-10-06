@@ -1,4 +1,4 @@
-# Setting up new K8s cluster for usage with Dynamic Resource Allocation resource drivers
+# Setting up new K8s cluster for usage with Dynamic Resource Allocation (DRA)
 
 - In any uncertainty, refer to main [Kubernetes installation documentation](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/) .
 - Check what version of Kubernetes is [required](../README.md#supported-kubernetes-versions)
@@ -9,6 +9,20 @@ sudo -E kubeadm init --config hack/clusterconfig.yaml
 ```
 - Deploy cni .
 - Verify that `coredns` pod(s) are up: `kubectl get pods -A | grep dns`.
+
+
+# Useful and required [FeatureGates](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/)
+
+| FeatureGate | Components to enable in | Details | Use case |
+|-------------|-------------------------|---------|----------|
+| DRAExtendedResource | apiserver, scheduler, kubelet | [KEP-5004 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5004-dra-extended-resource) | Allows allocating DRA resources through `resources` section similar to native resources, [example](../../deployments/gpu/examples/deployment-extended-resources.yaml). |
+| DRADeviceTaints | apiserver, controller-manager, scheduler | [KEP-5055 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5055-dra-device-taints-and-tolerations) | Allows restricting scheduling and execution of Pods on tainted DRA devices. |
+| DRAAdminAccess | apiserver, controller-manager, scheduler | [KEP-5018 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/5018-dra-adminaccess) | Allows administrative access in parallel to workload access, e.g. maintenance, monitoring. |
+| DRAPartitionableDevices | apiserver, scheduler | [KEP-4815 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4815-dra-partitionable-devices) | Allows partial allocations of DRA resources. |
+| DRAResourceClaimDeviceStatus | apiserver | [KEP-4817 link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/4817-resource-claim-device-status) | Adds DRA devices' status to the ResourceClaim status. |
+| ResourceHealthStatus | apiserver, kubelet | [KEP-4680 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4680-add-resource-health-to-pod-status) | Adds DRA devices' status to the Pod status. |
+| DRAPrioritizedList | apiserver, scheduler. controller-manager | [KEP-4816 link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling/4816-dra-prioritized-list/README.md#feature-enablement-and-rollback) | Allows requesting alternatives for device request. |
+
 
 ## Enable CDI in Containerd
 
