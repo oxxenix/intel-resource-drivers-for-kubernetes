@@ -31,6 +31,8 @@ spec:
               fieldPath: metadata.namespace
         - name: SYSFS_ROOT
           value: "/sysfs"
+        - name: ZES_ENABLE_SYSMAN
+          value: "1"
         volumeMounts:
         - name: plugins-registry
           mountPath: /var/lib/kubelet/plugins_registry
@@ -44,7 +46,7 @@ spec:
         - name: sysfs
           mountPath: "/sysfs"
         securityContext:
-          privileged: false
+          privileged: true
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
