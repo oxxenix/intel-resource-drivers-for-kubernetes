@@ -227,3 +227,106 @@ func TestUpdateHealth(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateHealth_MultipleDevices(t *testing.T) {
+	testDirs, err := testhelpers.NewTestDirs(gpudevice.DriverName)
+	if err != nil {
+		t.Fatalf("setup error creating test dirs: %v", err)
+	}
+	defer testhelpers.CleanupTest(t, "TestGpuUpdateHealth", testDirs.TestRoot)
+
+	testDevices := gpudevice.DevicesInfo{
+		"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16, Driver: "i915"},
+		"0000-00-03-0-0x56c1": {Model: "0x56c1", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c1", MaxVFs: 16, Driver: "i915"},
+	}
+	if err := fakesysfs.FakeSysFsGpuContents(testDirs.SysfsRoot, testDirs.DevfsRoot, testDevices, false); err != nil {
+		t.Fatalf("could not create fake sysfs: %v", err)
+	}
+
+	drv, err := getFakeDriver(testDirs)
+	if err != nil {
+		t.Fatalf("could not create fake driver: %v", err)
+	}
+	defer func() { _ = drv.Shutdown(context.TODO()) }()
+
+	//nolint:forcetypeassert // We want the code to panic if our assumption turns out to be wrong.
+	allocatable := drv.state.Allocatable.(map[string]*gpudevice.DeviceInfo)
+	dev1 := allocatable["0000-00-02-0-0x56c0"]
+	dev2 := allocatable["0000-00-03-0-0x56c1"]
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tests := []struct {
+		name                string
+		initialHealthy      bool
+		ignoreHealthWarning bool
+		updates             HealthStatusUpdates
+		expectHealthyDev1   bool
+		expectStatusesDev1  map[string]string
+		expectHealthyDev2   bool
+		expectStatusesDev2  map[string]string
+	}{
+		{
+			name:                "Isolated failure: one unhealthy device disables only that device",
+			initialHealthy:      true,
+			ignoreHealthWarning: false,
+			updates: HealthStatusUpdates{
+				"0000-00-03-0-0x56c1": {
+					"CoreThermal": "Critical",
+				},
+			},
+			expectHealthyDev1:  true,
+			expectStatusesDev1: map[string]string{},
+			expectHealthyDev2:  false,
+			expectStatusesDev2: map[string]string{"CoreThermal": "Critical"},
+		},
+		{
+			name:                "Partial recovery: only one device becomes healthy while the other stays unhealthy",
+			initialHealthy:      false,
+			ignoreHealthWarning: false,
+			updates: HealthStatusUpdates{
+				"0000-00-03-0-0x56c1": {
+					"CoreThermal": "OK",
+				},
+			},
+			expectHealthyDev1:  false,
+			expectHealthyDev2:  true,
+			expectStatusesDev2: map[string]string{"CoreThermal": "OK"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			// Reset device to healthy state before each test
+			dev1.Healthy = tt.initialHealthy
+			dev2.Healthy = tt.initialHealthy
+
+			// Set the driver's ignoreHealthWarning setting
+			drv.state.ignoreHealthWarning = tt.ignoreHealthWarning
+
+			drv.updateHealth(ctx, tt.updates)
+
+			if dev1.Healthy != tt.expectHealthyDev1 {
+				t.Fatalf("expected device1 healthy=%v, got %v", tt.expectHealthyDev1, dev1.Healthy)
+			}
+
+			for status, expected := range tt.expectStatusesDev1 {
+				if dev1.HealthStatus[status] != expected {
+					t.Fatalf("expected health status for %s to be %s, got %s", status, expected, dev1.HealthStatus[status])
+				}
+			}
+
+			if dev2.Healthy != tt.expectHealthyDev2 {
+				t.Fatalf("expected device2 healthy=%v, got %v", tt.expectHealthyDev2, dev2.Healthy)
+			}
+
+			for status, expected := range tt.expectStatusesDev2 {
+				if dev2.HealthStatus[status] != expected {
+					t.Fatalf("expected health status for %s to be %s, got %s", status, expected, dev2.HealthStatus[status])
+				}
+			}
+		})
+	}
+}
