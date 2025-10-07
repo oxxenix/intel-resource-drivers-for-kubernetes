@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	core "k8s.io/api/core/v1"
-	resourcev1 "k8s.io/api/resource/v1beta1"
+	resourcev1 "k8s.io/api/resource/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	kubefake "k8s.io/client-go/kubernetes/fake"
@@ -38,13 +38,9 @@ import (
 	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
-const (
-	NoHealthcare   = false
-	WithHealthcare = true
-)
-
 func TestGaudiFakeSysfs(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+	defer testhelpers.CleanupTest(t, "TestGaudiFakeSysfs", testDirs.TestRoot)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return
@@ -67,13 +63,8 @@ func TestGaudiFakeSysfs(t *testing.T) {
 	}
 }
 
-func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver, error) {
+func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 	nodeName := "node1"
-	gaudiFlags := GaudiFlags{
-		Healthcare:         healthcare,
-		HealthcareInterval: 1,
-	}
-
 	config := &helpers.Config{
 		CommonFlags: &helpers.Flags{
 			NodeName:                  nodeName,
@@ -82,7 +73,7 @@ func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver,
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
 		Coreclient:  kubefake.NewSimpleClientset(),
-		DriverFlags: &gaudiFlags,
+		DriverFlags: nil,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -216,7 +207,7 @@ func TestGaudiPrepareResourceClaims(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs, NoHealthcare)
+		driver, driverErr := getFakeDriver(testDirs)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
@@ -339,7 +330,7 @@ func TestGaudiUnprepareResourceClaims(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs, NoHealthcare)
+		driver, driverErr := getFakeDriver(testDirs)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue

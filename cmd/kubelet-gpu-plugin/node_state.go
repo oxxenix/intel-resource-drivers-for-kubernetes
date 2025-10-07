@@ -19,10 +19,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	inf "gopkg.in/inf.v0"
-	resourcev1 "k8s.io/api/resource/v1beta1"
+	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
@@ -36,9 +38,10 @@ import (
 
 type nodeState struct {
 	*helpers.NodeState
+	ignoreHealthWarning bool // true if Warning status means healthy, false otherwise.
 }
 
-func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimFilePath string, sysfsRoot string, nodeName string) (*helpers.NodeState, error) {
+func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimFilePath string, sysfsRoot string, nodeName string, ignoreHealthWarning bool) (*nodeState, error) {
 	for ddev := range detectedDevices {
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
@@ -79,6 +82,7 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 			SysfsRoot:              sysfsRoot,
 			NodeName:               nodeName,
 		},
+		ignoreHealthWarning: ignoreHealthWarning,
 	}
 
 	allocatableDevices, ok := state.Allocatable.(map[string]*device.DeviceInfo)
@@ -89,7 +93,7 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 		klog.V(5).Infof("Allocatable device: %v : %+v", duid, ddev)
 	}
 
-	return state.NodeState, nil
+	return &state, nil
 }
 
 func (s *nodeState) GetResources() resourceslice.DriverResources {
@@ -101,35 +105,57 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 		sriovSupported := gpu.MaxVFs > 0
 		newDevice := resourcev1.Device{
 			Name: gpuUID,
-			Basic: &resourcev1.BasicDevice{
-				Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
-					"model": {
-						StringValue: &gpu.ModelName,
-					},
-					"family": {
-						StringValue: &gpu.FamilyName,
-					},
-					"driver": {
-						StringValue: &gpu.Driver,
-					},
-					"sriov": {
-						BoolValue: &sriovSupported,
-					},
-					"pciRoot": {
-						StringValue: &gpu.PCIRoot,
-					},
-					"pciId": {
-						StringValue: &gpu.Model,
-					},
-					"pciAddress": {
-						StringValue: &gpu.PCIAddress,
-					},
+			Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
+				"model": {
+					StringValue: &gpu.ModelName,
 				},
-				Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
-					"memory":     {Value: resource.MustParse(fmt.Sprintf("%vMi", gpu.MemoryMiB))},
-					"millicores": {Value: *resource.NewDecimalQuantity(*inf.NewDec(int64(1000), inf.Scale(0)), resource.DecimalSI)},
+				"family": {
+					StringValue: &gpu.FamilyName,
+				},
+				"driver": {
+					StringValue: &gpu.Driver,
+				},
+				"sriov": {
+					BoolValue: &sriovSupported,
+				},
+				"pciRoot": {
+					StringValue: &gpu.PCIRoot,
+				},
+				"pciId": {
+					StringValue: &gpu.Model,
+				},
+				"pciAddress": {
+					StringValue: &gpu.PCIAddress,
+				},
+				"healthy": {
+					BoolValue: &gpu.Healthy,
 				},
 			},
+			Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
+				"memory":     {Value: resource.MustParse(fmt.Sprintf("%vMi", gpu.MemoryMiB))},
+				"millicores": {Value: *resource.NewDecimalQuantity(*inf.NewDec(int64(1000), inf.Scale(0)), resource.DecimalSI)},
+			},
+		}
+		// FIXME: TODO: K8s 1.33-1.34 only supports plain taint without description.
+		// See https://github.com/kubernetes/enhancements/issues/5055 .
+		if !gpu.Healthy {
+			// e.g. HealthIssues-memorytemperature_coretemperature:NoExecute
+			// The format will change in K8s 1.35+.
+			unhealthyTypes := []string{}
+			for healthType, healthStatus := range gpu.HealthStatus {
+				if !s.StatusHealth(healthStatus) {
+					unhealthyTypes = append(unhealthyTypes, healthType)
+				}
+			}
+			sort.Strings(unhealthyTypes)
+			key := "HealthIssues-" + strings.Join(unhealthyTypes, "_")
+			key = strings.ReplaceAll(key, "[", "")
+			key = strings.ReplaceAll(key, "]", "")
+			key = strings.ReplaceAll(key, ",", "_")
+			newDevice.Taints = []resourcev1.DeviceTaint{{
+				Key:    key,
+				Effect: resourcev1.DeviceTaintEffectNoExecute,
+			}}
 		}
 
 		devices = append(devices, newDevice)
@@ -137,6 +163,23 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 
 	return resourceslice.DriverResources{Pools: map[string]resourceslice.Pool{
 		s.NodeName: {Slices: []resourceslice.Slice{{Devices: devices}}}}}
+}
+
+func (s *nodeState) StatusHealth(status string) (health bool) {
+	switch status {
+	case "Critical":
+		return false
+	case "Warning":
+		return s.ignoreHealthWarning
+	case "OK":
+		return true
+	case "Unknown":
+		return true
+	default:
+		// This is unexpected, we should never get here.
+		klog.Error("Unsupported health status value: ", status)
+		panic("invalid status value")
+	}
 }
 
 func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim) error {

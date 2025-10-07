@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	core "k8s.io/api/core/v1"
-	resourceapi "k8s.io/api/resource/v1beta1"
+	resourceapi "k8s.io/api/resource/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	kubefake "k8s.io/client-go/kubernetes/fake"
@@ -38,8 +38,9 @@ import (
 	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
-func TestFakeSysfs(t *testing.T) {
+func TestGPUFakeSysfs(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+	defer testhelpers.CleanupTest(t, "TestGPUFakeSysfs", testDirs.TestRoot)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return
@@ -72,7 +73,8 @@ func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 			KubeletPluginDir:          testDirs.KubeletPluginDir,
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
-		Coreclient: kubefake.NewSimpleClientset(),
+		Coreclient:  kubefake.NewSimpleClientset(),
+		DriverFlags: &GPUFlags{}, // ensure correct type to avoid nil type assertion failure
 	}
 
 	if err := os.MkdirAll(config.CommonFlags.KubeletPluginDir, 0755); err != nil {

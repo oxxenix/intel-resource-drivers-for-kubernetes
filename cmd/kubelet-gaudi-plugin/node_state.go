@@ -22,7 +22,7 @@ import (
 	"path"
 	"time"
 
-	resourcev1 "k8s.io/api/resource/v1beta1"
+	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
 	"k8s.io/klog/v2"
@@ -39,7 +39,7 @@ type nodeState struct {
 	*helpers.NodeState
 }
 
-func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimsFilePath string, nodeName string) (*helpers.NodeState, error) {
+func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimsFilePath string, nodeName string) (*nodeState, error) {
 	for ddev := range detectedDevices {
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
@@ -99,7 +99,7 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 		klog.V(5).Infof("Allocatable device: %v : %+v", duid, ddev)
 	}
 
-	return state.NodeState, nil
+	return &state, nil
 }
 
 func (s *nodeState) GetResources() resourceslice.DriverResources {
@@ -112,24 +112,15 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 	for gaudiUID, gaudi := range allocatableDevices {
 		newDevice := resourcev1.Device{
 			Name: gaudiUID,
-			Basic: &resourcev1.BasicDevice{
-				Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
-					"model": {
-						StringValue: &gaudi.ModelName,
-					},
-					"pciRoot": {
-						StringValue: &gaudi.PCIRoot,
-					},
-					"serial": {
-						StringValue: &gaudi.Serial,
-					},
-					"healthy": {
-						BoolValue: &gaudi.Healthy,
-					},
+			Attributes: map[resourcev1.QualifiedName]resourcev1.DeviceAttribute{
+				"model": {
+					StringValue: &gaudi.ModelName,
+				},
+				"pciRoot": {
+					StringValue: &gaudi.PCIRoot,
 				},
 			},
 		}
-
 		devices = append(devices, newDevice)
 	}
 

@@ -146,10 +146,12 @@ func newCommand() *cobra.Command {
 
 func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) error {
 	sysfsDir := helpers.GetSysfsRoot(gpuDevice.SysfsDRMpath)
-
+	// For readability in discover call.
+	withoutXpuSmi, nonVerboseDiscovery := false, false
 	fmt.Println("Scanning for GPUs")
 
-	detectedDevices := gpuDiscovery.DiscoverDevices(sysfsDir, namingStyle)
+	// Do a verbose discovery.
+	detectedDevices := gpuDiscovery.DiscoverDevices(sysfsDir, namingStyle, nonVerboseDiscovery, withoutXpuSmi)
 	if len(detectedDevices) == 0 {
 		fmt.Println("No supported devices detected")
 	}

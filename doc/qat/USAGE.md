@@ -56,7 +56,7 @@ a suitable device to the Resource Claim when Kubernetes schedules the Pod on the
 
 Example:
 ```
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: qat-template-sym
@@ -65,15 +65,16 @@ spec:
     devices:
       requests:
       - name: qat-request-sym
-        deviceClassName: qat.intel.com
-        selectors:
-        - cel:
-           expression: |-
-              device.attributes["qat.intel.com"].services == "sym" ||
-              device.attributes["qat.intel.com"].services == "sym;asym" ||
-              device.attributes["qat.intel.com"].services == "sym;dc" ||
-              device.attributes["qat.intel.com"].services == "asym;sym" ||
-              device.attributes["qat.intel.com"].services == "dc;sym" ||
+        exactly:
+          deviceClassName: qat.intel.com
+          selectors:
+          - cel:
+             expression: |-
+                device.attributes["qat.intel.com"].services == "sym" ||
+                device.attributes["qat.intel.com"].services == "sym;asym" ||
+                device.attributes["qat.intel.com"].services == "sym;dc" ||
+                device.attributes["qat.intel.com"].services == "asym;sym" ||
+                device.attributes["qat.intel.com"].services == "dc;sym" ||
 
 ---
 apiVersion: v1

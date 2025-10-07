@@ -1,6 +1,6 @@
 ## Requirements
 
-- Kubernetes 1.31+, with `DynamicResourceAllocation` feature-flag enabled, and [other cluster parameters](../../hack/clusterconfig.yaml)
+- Kubernetes v1.34+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
   - Containerd v1.7 or newer
@@ -8,25 +8,33 @@
 ### Enable CDI in Containerd
 
 Containerd has CDI enabled by default since version 2.0. For older versions (1.7 and above)
-CDI has to be enabled in Containerd config by enabling `enable_cdi` and `cdi_specs_dir`.
+CDI has to be enabled in Containerd config by enabling `enable_cdi` and `cdi_spec_dirs`.
 Example `/etc/containerd/config.toml`:
 ```
 version = 2
 [plugins]
   [plugins."io.containerd.grpc.v1.cri"]
     enable_cdi = true
-    cdi_specs_dir = ["/etc/cdi", "/var/run/cdi"]
+    cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
 ```
 
-## Limitations
-
-- Currently max 640 GPUs can be requested for one resource claim (10 PCIe devices,
-  each with 64 SR-IOV VFs = 640 VFs on the same node).
-- v0.6.0 only supports K8s v1.31 which does not have partitionable devices support,
-  therefore this release does not support dynamic GPU SR-IOV configuration.
-- v0.6.0+ do not support classic DRA and only relies on Structured Parameters DRA
-
 ## Deploy resource-driver
+
+### Helm Chart
+
+The [Intel GPU Resource Driver Helm Chart](../../charts/intel-gpu-resource-driver) is published
+as a package to GitHub OCI registry, and can be installed directly with Helm.
+
+```console
+helm install \
+    --namespace "intel-gpu-resource-driver" \
+    --create-namespace \
+    intel-gpu-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver-chart
+```
+
+See [details](../../charts/intel-gpu-resource-driver/README.md) in the chart directory.
+
+### From sources
 
 ```bash
 kubectl apply -k deployments/gpu/
@@ -34,19 +42,21 @@ kubectl apply -k deployments/gpu/
 
 By default, the kubelet-plugin is deployed on _all_ nodes in the cluster, as no nodeSelector is defined.
 To restrict the deployment to GPU-enabled nodes, follow these steps:
+
 1. Install Node Feature Discovery (NFD):
 
 Follow [Node Feature Discovery](https://github.com/kubernetes-sigs/node-feature-discovery) documentation to install and configure NFD in your cluster.
 
 ```bash
-kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.17.1"
+kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.17.4"
 ```
 
-2. Apply NFD Rules:
+2. Deploy the DRA driver with new NFD Rules for Intel GPUs:
 
 ```bash
 kubectl apply -k deployments/gpu/overlays/nfd_labeled_nodes/
 ```
+
 After NFD is installed and running, make sure the target node is labeled with:
 ```bash
 intel.feature.node.kubernetes.io/gpu: "true"
@@ -77,7 +87,7 @@ rpl-s-gpu.intel.com-mbr6p     rpl-s   gpu.intel.com     rpl-s   30s
 Example contents of the ResourceSlice object:
 ```bash
 $ kubectl get resourceslice/rpl-s-gpu.intel.com-mbr6p -o yaml
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceSlice
 metadata:
   creationTimestamp: "2024-09-27T09:11:24Z"
@@ -96,10 +106,22 @@ spec:
   devices:
   - basic:
       attributes:
+        driver:
+          string: i915
         family:
           string: Arc
+        healthy:
+          bool: true
         model:
           string: A770
+        pciAddress:
+          string: "0000:03:00.0"
+        pciId:
+          string: "0x56a0"
+        pciRoot:
+          string: "00"
+        sriov:
+          bool: false
       capacity:
         memory: 16288Mi
         millicores: 1k
@@ -132,6 +154,15 @@ crw-rw-rw-    1 root     root      226, 128 Sep 27 09:17 renderD128
 
 ```
 
+# Notable changes
+
+K8s v1.34 resource.k8s.io/v1 API changed ResourceClaim syntax compared to resource.k8s.io/v1beta1.
+In v1, device request must be specified either as `exactly`, or as a priority-ordered list using `firstAvailable`
+request type.  Using latter requires `DRAPrioritizedList` [feature gate](../CLUSTER_SETUP.md#useful-and-required-featuregates) to be enabled.
+
+`exactly`-specified request is allocated by the kube-scheduler as-is. The`firstAvailable` list of requests
+is processed by the scheduler sequentially until the currently processed request is possible to allocate.
+
 ## Requesting resources
 
 With Dynamic Resource Allocation the resources are requested in a similar way to how the persistent
@@ -146,7 +177,7 @@ to Pod spec to be used in container. The scheduler will allocate suitable GPU re
 ResourceSlice that was published by the Intel GPU resource driver.
 
 ```yaml
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaim
 metadata:
   name: claim1
@@ -154,7 +185,8 @@ spec:
   devices:
     requests:
     - name: gpu
-      deviceClassName: gpu.intel.com
+      exactly:
+        deviceClassName: gpu.intel.com
 ---
 apiVersion: v1
 kind: Pod
@@ -212,7 +244,7 @@ and needs explicit deletion.
 
 Example of Pod with generated Resource Claim:
 ```YAML
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: claim1
@@ -221,7 +253,8 @@ spec:
     devices:
       requests:
       - name: gpu
-        deviceClassName: gpu.intel.com
+        exactly:
+          deviceClassName: gpu.intel.com
 ---
 apiVersion: v1
 kind: Pod
@@ -249,7 +282,7 @@ memory should be at least 16Gi. The attributes and capacity properties of the GP
 
 Example of Resource Claim requesting 2 GPUs with at least 16 Gi of local memory each:
 ```yaml
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: claim1
@@ -258,11 +291,12 @@ spec:
     devices:
       requests:
       - name: gpu
-        deviceClassName: gpu.intel.com
-      count: 2
-      selectors:
-      - cel:
-          expression: device.capacity["gpu.intel.com"].memory.compareTo(quantity("16Gi")) >= 0
+        exactly:
+          deviceClassName: gpu.intel.com
+          count: 2
+          selectors:
+            - cel:
+              expression: device.capacity["gpu.intel.com"].memory.compareTo(quantity("16Gi")) >= 0
 ```
 
 ## GPU monitor deployment
@@ -273,7 +307,13 @@ Unlike with normal GPU ResourceClaims:
 * Monitor deployment gets access to all GPU devices on a node
 * `adminAccess` ResourceClaim allocations are not counted by scheduler as consumed resource, and can be allocated to workloads
 
-### Helm Chart
+## Health monitoring support
 
-The [Intel GPU Resource Driver Helm Chart](../../charts/intel-gpu-resource-driver) is published
-as a package to GitHub OCI registry, and can be installed directly with Helm.
+Starting from v0.9.0 GPU DRA driver supports health monitoring with `-m` command-line parameter (disabled in default deployment configuration) through [xpu-smi](https://github.com/intel/xpumanager) library. When it deems GPU accelerator as unhealthy, `healthy` field for corresponding device in `ResourceSlice` is set as `false`. If `DRADeviceTaints` feature gate is enabled in the cluster, health category [DeviceTaint](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) will be added to the unhealthy device's entry in `ResourceSlice`.
+
+In K8s v1.33 [DeviceTaintRule](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) (requires enabling feature gate) concept was introduced that allows scheduler to handle ResourceSlice devices similarly to how K8s Node Taints and Tolerations allow. Cluster admins can create such DeviceTaintRule to prevent workloads being scheduled and / or executed on a particular GPU.
+
+## Known issues
+
+- In K8s v1.34.0 - v1.34.1 the kubelet might lose GRPC connection to a DRA driver after 30 minutes of inactivity. To prevent this situation, enable `ResourceHealthStatus` feature-gate in Kubelet and api-server.
+- In K8s v1.34-0 - v1.34.1 the Device Taint Eviction Controller can evict a Pod with a DeviceTaintToleration immediately after successful scheduling. Solution is to upgrade the cluster to a newer K8s version.

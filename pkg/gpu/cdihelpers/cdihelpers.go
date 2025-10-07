@@ -112,6 +112,15 @@ func syncSpecDevices(specDevices []specs.Device, detected device.DevicesInfo, do
 
 func writeUpdatedSpec(cdiCache *cdiapi.Cache, spec *cdiapi.Spec) error {
 	specName := path.Base(spec.GetPath())
+
+	if len(spec.Devices) == 0 {
+		klog.V(5).Infof("No devices in spec %v, deleting it", specName)
+		if err := cdiCache.RemoveSpec(specName); err != nil {
+			return fmt.Errorf("failed to remove empty CDI spec %v: %v", specName, err)
+		}
+		return nil
+	}
+
 	klog.V(5).Infof("Updating spec %v", specName)
 	err := cdiCache.WriteSpec(spec.Spec, specName)
 	if err != nil {
@@ -164,6 +173,7 @@ func SyncDeviceNodes(
 			if cardIdx != detectedDevice.CardIdx {
 				klog.V(5).Infof("Fixing card index for CDI device %v", detectedDevice.UID)
 				deviceNode.Path = path.Join(dridevpath, fmt.Sprintf("card%d", detectedDevice.CardIdx))
+				deviceNode.HostPath = deviceNode.Path // update host path as well
 				specChanged = true
 			}
 		case renderdregexp.MatchString(driFileName):
@@ -176,6 +186,7 @@ func SyncDeviceNodes(
 			if renderdIdx != detectedDevice.RenderdIdx {
 				klog.V(5).Infof("Fixing renderD index for CDI device %v", detectedDevice.UID)
 				deviceNode.Path = path.Join(dridevpath, fmt.Sprintf("renderD%d", detectedDevice.RenderdIdx))
+				deviceNode.HostPath = deviceNode.Path // update host path as well
 				specChanged = true
 			}
 		default:

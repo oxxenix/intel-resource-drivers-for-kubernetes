@@ -1,27 +1,38 @@
-# Setting up new K8s cluster for usage with Dynamic Resource Allocation resource drivers
+# Setting up new K8s cluster for usage with Dynamic Resource Allocation (DRA)
 
 - In any uncertainty, refer to main [Kubernetes installation documentation](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/) .
 - Check what version of Kubernetes is [required](../README.md#supported-kubernetes-versions)
 - Ensure you are running either CRI-O 1.23+ or Containerd 1.7+ with CDI support enabled, and that [cluster-config](../hack/clusterconfig.yaml) file uses `criSocket` matching it.
-- Make sure to enable both `DynamicResourceAllocation`
-  [feature-gate](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/),
-  and alpha API for the Kubernetes api-server during your cluster initialization.
-  - Example cluster initialization is in [cluster-config](../hack/clusterconfig.yaml) file
+- Some functionality may require enabling `FeatureGate`. Example cluster initialization config is in [cluster-config](../hack/clusterconfig.yaml) file.
 ```bash
 sudo -E kubeadm init --config hack/clusterconfig.yaml
 ```
 - Deploy cni .
 - Verify that `coredns` pod(s) are up: `kubectl get pods -A | grep dns`.
 
+
+# Useful and required [FeatureGates](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/)
+
+| FeatureGate | Components to enable in | Details | Use case |
+|-------------|-------------------------|---------|----------|
+| DRAExtendedResource | apiserver, scheduler, kubelet | [KEP-5004 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5004-dra-extended-resource) | Allows allocating DRA resources through `resources` section similar to native resources, [example](../../deployments/gpu/examples/deployment-extended-resources.yaml). |
+| DRADeviceTaints | apiserver, controller-manager, scheduler | [KEP-5055 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5055-dra-device-taints-and-tolerations) | Allows restricting scheduling and execution of Pods on tainted DRA devices. |
+| DRAAdminAccess | apiserver, controller-manager, scheduler | [KEP-5018 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/5018-dra-adminaccess) | Allows administrative access in parallel to workload access, e.g. maintenance, monitoring. |
+| DRAPartitionableDevices | apiserver, scheduler | [KEP-4815 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4815-dra-partitionable-devices) | Allows partial allocations of DRA resources. |
+| DRAResourceClaimDeviceStatus | apiserver | [KEP-4817 link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/4817-resource-claim-device-status) | Adds DRA devices' status to the ResourceClaim status. |
+| ResourceHealthStatus | apiserver, kubelet | [KEP-4680 link](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4680-add-resource-health-to-pod-status) | Adds DRA devices' status to the Pod status. |
+| DRAPrioritizedList | apiserver, scheduler. controller-manager | [KEP-4816 link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling/4816-dra-prioritized-list/README.md#feature-enablement-and-rollback) | Allows requesting alternatives for device request. |
+
+
 ## Enable CDI in Containerd
 
-Containerd config file should have `enable_cdi` and `cdi_specs_dir`. Example `/etc/containerd/config.toml`:
+Containerd config file should have `enable_cdi` and `cdi_spec_dirs`. Example `/etc/containerd/config.toml`:
 ```
 version = 2
 [plugins]
   [plugins."io.containerd.grpc.v1.cri"]
     enable_cdi = true
-    cdi_specs_dir = ["/etc/cdi", "/var/run/cdi"]
+    cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
 ```
 
 ## Using minikube
@@ -29,14 +40,11 @@ version = 2
 To create a minikube cluster with DRA, use the command (change the K8s version in the last parameter if needed):
 ```shell
 minikube start \
---feature-gates=DynamicResourceAllocation=true \
---extra-config=apiserver.feature-gates=DynamicResourceAllocation=true,DRADeviceTaints=true \
---extra-config=apiserver.runtime-config=resource.k8s.io/v1beta1=true,resource.k8s.io/v1alpha3=true \
---extra-config=scheduler.feature-gates=DynamicResourceAllocation=true,DRADeviceTaints=true \
---extra-config=controller-manager.feature-gates=DynamicResourceAllocation=true,DRADeviceTaints=true \
---extra-config=kubelet.feature-gates=DynamicResourceAllocation=true \
+--extra-config=apiserver.feature-gates=DRADeviceTaints=true \
+--extra-config=scheduler.feature-gates=DRADeviceTaints=true \
+--extra-config=controller-manager.feature-gates=DRADeviceTaints=true \
 --container-runtime=containerd \
---kubernetes-version=1.33.0
+--kubernetes-version=1.34.0
 ```
 
 Minikube will start its own Containerd inside the minikube docker container, where CDI needs to be
@@ -50,7 +58,7 @@ Add two lines into the `[plugins."io.containerd.grpc.v1.cri"]` section:
 ```
   [plugins."io.containerd.grpc.v1.cri"]
     enable_cdi = true
-    cdi_specs_dir = ["/etc/cdi", "/var/run/cdi"]
+    cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
 ```
 
 Then save it, exit editor, and restart the containerd that runs inside the minikube

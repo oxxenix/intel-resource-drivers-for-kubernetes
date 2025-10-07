@@ -3,6 +3,7 @@ resources:
   - namespace.yaml
   - resource-driver.yaml
 
-images:
-  - name: intel/intel-gpu-resource-driver
-    newTag: v0.8.0
+#images:
+#  - name: intel/intel-gpu-resource-driver
+#    newName: intel/intel-gpu-resource-driver
+#    newTag: v0.9.0

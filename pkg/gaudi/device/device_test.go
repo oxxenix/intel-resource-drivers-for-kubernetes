@@ -39,8 +39,6 @@ func TestDevicesInfoDeepCopy(t *testing.T) {
 			DeviceIdx:  1,
 			ModuleIdx:  2,
 			PCIRoot:    "0000:00",
-			Serial:     "1234567890",
-			Healthy:    true,
 		},
 	}
 

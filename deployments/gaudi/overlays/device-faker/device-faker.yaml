@@ -8,27 +8,47 @@ spec:
     spec:
       initContainers:
       - name: device-faker
-        image: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-device-faker:v0.1.0
+        # 'Always' policy makes it a sideCar container with longer lifecycle,
+        # allowing it to be terminated last
+        # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#termination-with-sidecars
+        # which allows proper fake root cleanup.
+        restartPolicy: Always
+        image: registry.local/intel-device-faker:latest
         imagePullPolicy: Always
-        command: ["/device-faker", "gaudi", "-t", "/opt/templates/gaudi-template.json", "-d", "/tmp/fake-root"]
+        command: ["/device-faker", "gaudi", "-t", "/opt/templates/gaudi-template.json", "-r", "-d", "/tmp/fake-root", "-c"]
         volumeMounts:
         - name: fake-root
           mountPath: /tmp/fake-root
+        securityContext:
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+            add:  [ "MKNOD" ]
       containers:
       - name: kubelet-plugin
+        # `-v 5` is added for more verbose logging.
+        command: ["/kubelet-gaudi-plugin", "-v", "5"]
+        image: intel/intel-gaudi-resource-driver:latest
+        imagePullPolicy: Always
         env:
         - name: SYSFS_ROOT
-          value: "/fake-sysfs"
+          value: "/sysfs"
+        - name: DEVFS_ROOT
+          value: "/tmp/fake-root/dev"
         volumeMounts:
         - name: fake-root
-          mountPath: /fake-sysfs
+          mountPath: /sysfs
           subPath: sysfs
         - name: fake-root
-          mountPath: /fake-dev/dri
-          subPath: dev/dri
+          mountPath: /tmp/fake-root/dev
+          subPath: dev
         - name: fake-root
-          mountPath: /fake-cdi
+          mountPath: /etc/cdi
           subPath: cdi
+        securityContext:
+          privileged: false
       volumes:
       - name: fake-root
-        emptyDir: {}
+        hostPath:
+          path: /tmp/fake-root

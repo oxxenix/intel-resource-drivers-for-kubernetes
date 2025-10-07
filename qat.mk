@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-QAT_VERSION ?= v0.3.0
+QAT_VERSION ?= v0.4.0
 QAT_IMAGE_NAME ?= intel-qat-resource-driver
 QAT_IMAGE_VERSION ?= $(QAT_VERSION)
 QAT_IMAGE_TAG ?= $(REGISTRY)/$(QAT_IMAGE_NAME):$(QAT_IMAGE_VERSION)
@@ -27,7 +27,7 @@ $(COMMON_SRC) \
 pkg/qat/device/*.go \
 pkg/qat/cdi/*.go
 
-QAT_LDFLAGS = ${LDFLAGS} -extldflags $(EXT_LDFLAGS) -X ${PKG}/pkg/version.driverVersion=${QAT_VERSION}
+QAT_LDFLAGS = ${LDFLAGS} -extldflags $(EXT_LDFLAGS) -X ${PKG}/pkg/version.version=${QAT_VERSION}
 
 .PHONY: qat
 qat: $(QAT_BINARIES)

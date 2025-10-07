@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"path"
 
-	resourceapi "k8s.io/api/resource/v1beta1"
+	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/types"
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/goxpusmi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
@@ -34,33 +35,71 @@ import (
 )
 
 type driver struct {
-	client coreclientset.Interface
-	state  *helpers.NodeState
-	helper *kubeletplugin.Helper
+	client     coreclientset.Interface
+	state      *nodeState
+	helper     *kubeletplugin.Helper
+	healthcare bool
+}
+
+func (d *driver) PublishResourceSlice(ctx context.Context) error {
+	resources := d.state.GetResources()
+	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[d.state.NodeName].Slices[0].Devices))
+	klog.V(5).Infof("devices: %+v", resources.Pools[d.state.NodeName].Slices[0].Devices)
+	if err := d.helper.PublishResources(ctx, resources); err != nil {
+		return fmt.Errorf("error publishing resources: %v", err)
+	}
+
+	return nil
+}
+
+func getGPUFlags(someFlags any) (*GPUFlags, error) {
+	switch v := someFlags.(type) {
+	case *GPUFlags:
+		return v, nil
+	default:
+		return &GPUFlags{}, fmt.Errorf("could not parse driver flags as GPUFlags (got type: %T)", v)
+	}
 }
 
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
+	verboseDiscovery := klog.V(5).Enabled()
+	klog.Infof("Verbose mode: %v", verboseDiscovery)
+
+	gpuFlags, err := getGPUFlags(config.DriverFlags)
+	if err != nil {
+		return nil, fmt.Errorf("get GPU flags: %w", err)
+	}
 
 	driver := &driver{
 		client: config.Coreclient,
-		state: &helpers.NodeState{
-			PreparedClaimsFilePath: path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName),
-			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
-			NodeName:               config.CommonFlags.NodeName,
+		state: &nodeState{
+			NodeState: &helpers.NodeState{
+				PreparedClaimsFilePath: path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName),
+				SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
+				NodeName:               config.CommonFlags.NodeName,
+			},
+			ignoreHealthWarning: gpuFlags.IgnoreHealthWarning,
 		},
+		healthcare: gpuFlags.Healthcare,
 	}
 
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
 
-	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle)
+	// Initialize XPU SMI library.
+	xpusmiInitErr := goxpusmi.Initialize()
+	if xpusmiInitErr != nil {
+		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", xpusmiInitErr)
+		driver.healthcare = false
+	}
+
+	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery, xpusmiInitErr == nil)
 	if len(detectedDevices) == 0 {
 		klog.Info("No supported devices detected")
 	}
 
 	klog.V(3).Info("Creating new NodeState")
-	var err error
-	driver.state, err = newNodeState(detectedDevices, config.CommonFlags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName)
+	driver.state, err = newNodeState(detectedDevices, config.CommonFlags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName, gpuFlags.IgnoreHealthWarning)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
@@ -86,12 +125,13 @@ PluginDataDirectoryPath: %v`,
 
 	driver.helper = helper
 
-	state := nodeState{NodeState: driver.state}
-	resources := state.GetResources()
-	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[state.NodeName].Slices[0].Devices))
-	klog.V(5).Infof("devices: %+v", resources.Pools[state.NodeName].Slices[0].Devices)
-	if err := helper.PublishResources(ctx, resources); err != nil {
-		return nil, fmt.Errorf("error publishing resources: %v", err)
+	if err := driver.PublishResourceSlice(ctx); err != nil {
+		return nil, err
+	}
+
+	if driver.healthcare {
+		klog.Info("Starting health monitoring")
+		go driver.startHealthMonitor(ctx, gpuFlags)
 	}
 	klog.V(3).Info("Finished creating new driver")
 
@@ -111,15 +151,14 @@ func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceap
 }
 
 func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.ResourceClaim) kubeletplugin.PrepareResult {
-	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claim)
+	klog.V(5).Infof("NodePrepareResource is called for claim %v", claim.UID)
 
 	if claimPreparation, found := d.state.Prepared[string(claim.UID)]; found {
 		klog.V(3).Infof("Claim %v was already prepared, nothing to do", claim.UID)
 		return claimPreparation
 	}
 
-	state := nodeState{d.state}
-	if err := state.Prepare(ctx, claim); err != nil {
+	if err := d.state.Prepare(ctx, claim); err != nil {
 		return kubeletplugin.PrepareResult{
 			Err: fmt.Errorf("error preparing devices for claim %v: %v", claim.UID, err),
 		}
@@ -145,5 +184,17 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 
 func (d *driver) Shutdown(ctx context.Context) error {
 	d.helper.Stop()
+	// Health monitoring does shutdown by itself (when main context goes down), if enabled,
+	// otherwise do shutdown here.
+	if !d.healthcare {
+		if err := goxpusmi.Shutdown(); err != nil {
+			klog.Errorf("failed to shutdown xpu-smi: %v", err)
+		}
+	}
 	return nil
+}
+
+func (d *driver) HandleError(ctx context.Context, err error, message string) {
+	// TODO: FIXME: error is ignored ATM, handle it properly.
+	klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error")
 }

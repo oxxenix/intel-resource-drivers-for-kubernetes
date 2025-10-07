@@ -5,6 +5,7 @@
 package device
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
@@ -38,9 +39,11 @@ func TestCDIName(t *testing.T) {
 func TestDevicesInfoDeepCopy(t *testing.T) {
 	original := DevicesInfo{
 		"0000-01-02-0-0x1234": {
-			UID:        "0000-01-02-0-0x1234",
-			PCIAddress: "0000:01:02.0",
-			DeviceType: "GPU",
+			UID:          "0000-01-02-0-0x1234",
+			PCIAddress:   "0000:01:02.0",
+			DeviceType:   "GPU",
+			HealthStatus: map[string]string{"CoreThermal": "OK"},
+			Healthy:      true,
 		},
 	}
 
@@ -61,7 +64,7 @@ func TestDevicesInfoDeepCopy(t *testing.T) {
 			t.Errorf("DeepCopy() returned the same pointer for device with key %v, expected different pointers", key)
 		}
 
-		if *copyDevice != *originalDevice {
+		if !reflect.DeepEqual(copyDevice, originalDevice) {
 			t.Errorf("DeepCopy() returned different values for device with key %v, expected identical values", key)
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"testing"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
@@ -68,7 +69,8 @@ func TestDiscoverDevices(t *testing.T) {
 					ModelName:  "Flex 170",
 					FamilyName: "Data Center Flex",
 					PCIAddress: "0000:0f:00.0",
-					MemoryMiB:  8192,
+					// TODO: FIXME: fake xpu-smi
+					MemoryMiB:  0,
 					DeviceType: "gpu",
 					CardIdx:    0,
 					RenderdIdx: 128,
@@ -76,6 +78,7 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-0-0x56c0",
 					MaxVFs:     16,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 			},
 		},
@@ -131,7 +134,8 @@ func TestDiscoverDevices(t *testing.T) {
 					ModelName:  "Flex 170",
 					FamilyName: "Data Center Flex",
 					PCIAddress: "0000:0f:00.0",
-					MemoryMiB:  8192,
+					// TODO: FIXME: fake xpu-smi
+					MemoryMiB:  0,
 					DeviceType: "gpu",
 					CardIdx:    0,
 					RenderdIdx: 128,
@@ -139,13 +143,15 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-0-0x56c0",
 					MaxVFs:     16,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 				"0000-0f-00-1-0x56c0": {
 					Model:      "0x56c0",
 					ModelName:  "Flex 170",
 					FamilyName: "Data Center Flex",
 					PCIAddress: "0000:0f:00.1",
-					MemoryMiB:  8192,
+					// TODO: FIXME: fake xpu-smi
+					MemoryMiB:  0,
 					DeviceType: "vf",
 					ParentUID:  "0000-0f-00-0-0x56c0",
 					CardIdx:    1,
@@ -154,6 +160,7 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-1-0x56c0",
 					MaxVFs:     0,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 			},
 		},
@@ -187,7 +194,8 @@ func TestDiscoverDevices(t *testing.T) {
 					ModelName:  "Flex 170",
 					FamilyName: "Data Center Flex",
 					PCIAddress: "0000:0f:00.0",
-					MemoryMiB:  8192,
+					// TODO: FIXME: fake xpu-smi
+					MemoryMiB:  0,
 					DeviceType: "gpu",
 					CardIdx:    0,
 					RenderdIdx: 128,
@@ -195,6 +203,7 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-0-0x56c0",
 					MaxVFs:     0,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 			},
 		},
@@ -215,7 +224,8 @@ func TestDiscoverDevices(t *testing.T) {
 					ModelName:  "Flex 170",
 					FamilyName: "Data Center Flex",
 					PCIAddress: "0000:0f:00.0",
-					MemoryMiB:  8192,
+					// TODO: FIXME: fake xpu-smi
+					MemoryMiB:  0,
 					DeviceType: "gpu",
 					CardIdx:    0,
 					RenderdIdx: 128,
@@ -223,6 +233,7 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-0-0x56c0",
 					MaxVFs:     0,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 			},
 		},
@@ -277,6 +288,7 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-0-0x56c0",
 					MaxVFs:     16,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 			},
 		},
@@ -305,6 +317,7 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-0-0x56c0",
 					MaxVFs:     16,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 			},
 		},
@@ -318,7 +331,8 @@ func TestDiscoverDevices(t *testing.T) {
 					ModelName:  "Flex 170",
 					FamilyName: "Data Center Flex",
 					PCIAddress: "0000:0f:00.0",
-					MemoryMiB:  8192,
+					// TODO: FIXME: fake xpu-smi
+					MemoryMiB:  0,
 					DeviceType: "gpu",
 					CardIdx:    0,
 					RenderdIdx: 128,
@@ -326,6 +340,7 @@ func TestDiscoverDevices(t *testing.T) {
 					UID:        "0000-0f-00-0-0x56c0",
 					MaxVFs:     16,
 					Driver:     device.SysfsI915DriverName,
+					Healthy:    true,
 				},
 			},
 		},
@@ -347,8 +362,8 @@ func TestDiscoverDevices(t *testing.T) {
 				}
 			}
 
-			// Discover devices
-			devices := discovery.DiscoverDevices(testDirs.SysfsRoot, tt.namingStyle)
+			// Discover devices without xpu-smi. TODO: cover xpu-smi as well.
+			devices := discovery.DiscoverDevices(testDirs.SysfsRoot, tt.namingStyle, true, false)
 
 			// Validate results
 			if len(devices) != len(tt.expected) {
@@ -360,7 +375,7 @@ func TestDiscoverDevices(t *testing.T) {
 					t.Errorf("expected device %v not found", name)
 					continue
 				}
-				if *actualDevice != *expectedDevice {
+				if !reflect.DeepEqual(actualDevice, expectedDevice) {
 					t.Errorf("device %s mismatch: expected %+v, got %+v", name, expectedDevice, actualDevice)
 				}
 			}

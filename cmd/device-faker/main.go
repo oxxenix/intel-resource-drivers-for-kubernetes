@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -28,6 +30,7 @@ import (
 	gaudiDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	gpuDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
 var (
@@ -35,7 +38,6 @@ var (
 		"gpu":   true,
 		"gaudi": true,
 	}
-	version = "v0.3.0"
 )
 
 func main() {
@@ -76,6 +78,8 @@ func newCommand() *cobra.Command {
 
 			realDevices := cmd.Flag("real-devices").Value.String() == "true"
 
+			cleanup := cmd.Flag("cleanup").Value.String() == "true"
+
 			newTemplate := cmd.Flag("new-template").Value.String() == "true"
 			if newTemplate {
 				return createNewTemplate(deviceType)
@@ -106,29 +110,32 @@ func newCommand() *cobra.Command {
 				return fmt.Errorf("error creating temp dirs: %v", err)
 			}
 
+			fmt.Println(cmd.Version)
+
 			switch deviceType {
 			case "gpu":
-				return handleGPUDevices(template, testDirs, realDevices)
+				return handleGPUDevices(template, testDirs, realDevices, cleanup)
 			case "gaudi":
-				return handleGaudiDevices(template, testDirs, realDevices)
+				return handleGaudiDevices(template, testDirs, realDevices, cleanup)
 			}
 
 			return nil
 		},
 	}
 
-	cmd.Version = version
+	cmd.Version = version.GetVersion() + " (git " + version.GetGitCommit() + "). Built " + version.GetBuildDate()
 	cmd.Flags().BoolP("version", "v", false, "Show the version of the binary")
 	cmd.Flags().BoolP("new-template", "n", false, "Create new template file for given accelerator")
 	cmd.Flags().StringP("template", "t", "", "Template file to populate devices from")
 	cmd.Flags().StringP("target-dir", "d", "", "Target directory, default is random /tmp/test-*")
 	cmd.Flags().BoolP("real-devices", "r", false, "Create real device files (requires root)")
+	cmd.Flags().BoolP("cleanup", "c", false, "Wait for SIGTERM, cleanup before exiting")
 	cmd.SetVersionTemplate("device-faker version: {{.Version}}\n")
 
 	return cmd
 }
 
-func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool) error {
+func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool, cleanup bool) error {
 	devices := make(gpuDevice.DevicesInfo)
 	devicesBytes, err := os.ReadFile(templateFilePath)
 	if err != nil {
@@ -152,10 +159,10 @@ func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, re
 	fmt.Printf("fake sysfs: %v\n", testDirs.SysfsRoot)
 	fmt.Printf("fake devfs: %v\n", testDirs.DevfsRoot)
 	fmt.Printf("fake CDI: %v\n", testDirs.CdiRoot)
-	return nil
+	return doCleanup(testDirs, cleanup)
 }
 
-func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool) error {
+func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool, cleanup bool) error {
 	devices := make(gaudiDevice.DevicesInfo)
 	devicesBytes, err := os.ReadFile(templateFilePath)
 	if err != nil {
@@ -179,7 +186,7 @@ func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, 
 	fmt.Printf("fake sysfs: %v\n", testDirs.SysfsRoot)
 	fmt.Printf("fake devfs: %v\n", testDirs.DevfsRoot)
 	fmt.Printf("fake CDI: %v\n", testDirs.CdiRoot)
-	return nil
+	return doCleanup(testDirs, cleanup)
 }
 
 func createNewTemplate(deviceType string) error {
@@ -201,22 +208,23 @@ func createNewTemplate(deviceType string) error {
 				MemoryMiB:  1024,
 				Millicores: 1000,
 				DeviceType: "gpu",
+				Driver:     "i915",
 				MaxVFs:     8,
 				VFProfile:  "",
 			},
 			"card1": {
-				UID:        "0000-03-00-1-0x56c0",
-				PCIAddress: "0000:03:00.1",
-				Model:      "0x56c0",
+				UID:        "0000-04-00-1-0xe20b",
+				PCIAddress: "0000:04:00.1",
+				Model:      "0xe20b",
 				CardIdx:    1,
 				RenderdIdx: 129,
-				MemoryMiB:  512,
+				MemoryMiB:  2048,
 				Millicores: 1000,
-				DeviceType: "vf",
+				DeviceType: "gpu",
+				Driver:     "xe",
 				MaxVFs:     0,
-				ParentUID:  "0000-03-00-0-0x56c0",
+				ParentUID:  "0000-04-00-0-0xe20b",
 				VFProfile:  "",
-				VFIndex:    0,
 			},
 		}
 		templateText, err = json.MarshalIndent(templateData, "", "  ")
@@ -251,5 +259,35 @@ func createNewTemplate(deviceType string) error {
 		fmt.Printf("Could not write new template file %v: %v", templateFilePath, err)
 	}
 	fmt.Printf("new template: %v\n", templateFilePath.Name())
+	return nil
+}
+
+func doCleanup(testDirs helpers.TestDirsType, cleanup bool) error {
+	if !cleanup {
+		return nil
+	}
+
+	fmt.Println("Waiting for SIGTERM to cleanup...")
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	sig := <-sigc
+
+	fmt.Printf("Received %v, cleaning up...\n", sig)
+
+	anyErr := false
+	// Do not cleanup the top level directory, it might be a mount point.
+	for _, dirname := range []string{testDirs.SysfsRoot, testDirs.DevfsRoot, testDirs.CdiRoot} {
+		if err := os.RemoveAll(dirname); err != nil {
+			fmt.Printf("Error cleaning up fake sysfs %v: %v\n", testDirs.TestRoot, err)
+			anyErr = true
+		}
+	}
+
+	if anyErr {
+		fmt.Println("Cleanup completed with errors.")
+		return fmt.Errorf("cleanup completed with errors")
+	}
+
+	fmt.Println("Cleanup completed successfully.")
 	return nil
 }

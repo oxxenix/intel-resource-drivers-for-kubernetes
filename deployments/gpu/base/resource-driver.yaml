@@ -20,7 +20,6 @@ spec:
       containers:
       - name: kubelet-plugin
         image: intel/intel-gpu-resource-driver:latest
-        imagePullPolicy: IfNotPresent
         command: ["/kubelet-gpu-plugin"]
         env:
         - name: NODE_NAME
@@ -33,6 +32,8 @@ spec:
               fieldPath: metadata.namespace
         - name: SYSFS_ROOT
           value: "/sysfs"
+        - name: ZES_ENABLE_SYSMAN
+          value: "1"
         # Only use devdri when using fake devfs with device-faker.
         # Use this to tell kubelet-plugin where the fake DRI devices nodes are.
         # This will be prefix for CDI devices, runtime will try to mount devices
@@ -56,8 +57,7 @@ spec:
         #- name: devdri
         #  mountPath: "/tmp/test-0123456789/dev/dri"
         securityContext:
-          privileged: false
-          allowPrivilegeEscalation: false
+          privileged: true
           capabilities:
             drop: [ "ALL" ]
           readOnlyRootFilesystem: true
@@ -133,7 +133,7 @@ spec:
   matchConstraints:
     resourceRules:
     - apiGroups:   ["resource.k8s.io"]
-      apiVersions: ["v1beta1"]
+      apiVersions: ["v1"]
       operations:  ["CREATE", "UPDATE", "DELETE"]
       resources:   ["resourceslices"]
   matchConditions:

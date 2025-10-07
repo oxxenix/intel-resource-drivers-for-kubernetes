@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-GAUDI_VERSION ?= v0.5.1
+GAUDI_VERSION ?= v0.6.0
 GAUDI_IMAGE_NAME ?= intel-gaudi-resource-driver
 GAUDI_IMAGE_VERSION ?= $(GAUDI_VERSION)
 GAUDI_IMAGE_TAG ?= $(REGISTRY)/$(GAUDI_IMAGE_NAME):$(GAUDI_IMAGE_VERSION)
@@ -27,15 +27,13 @@ pkg/gaudi/cdihelpers/*.go \
 pkg/gaudi/device/*.go \
 pkg/gaudi/discovery/*.go
 
-# Gaudi DRA driver is not statically built, it depends on libhlml.so, therefore
-# the -extldflags ${EXT_LDFLAGS} is not used.
-GAUDI_LDFLAGS = ${LDFLAGS} -X ${PKG}/pkg/version.driverVersion=${GAUDI_VERSION}
+GAUDI_LDFLAGS = ${LDFLAGS} -extldflags ${EXT_LDFLAGS} -X ${PKG}/pkg/version.version=${GAUDI_VERSION}
 
 .PHONY: gaudi
 gaudi: $(GAUDI_BINARIES)
 
 bin/kubelet-gaudi-plugin: cmd/kubelet-gaudi-plugin/*.go $(GAUDI_COMMON_SRC)
-	GOOS=linux GOARCH=${ARCH} \
+	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${GAUDI_LDFLAGS}" -mod vendor -o $@ ./cmd/kubelet-gaudi-plugin
 
 .PHONY: gaudi-container-build
@@ -43,9 +41,9 @@ gaudi-container-build: cleanall vendor
 	@echo "Building Gaudi resource driver container..."
 	$(DOCKER) build --pull --platform="linux/$(ARCH)" -t $(GAUDI_IMAGE_TAG) \
 	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) \
-	--build-arg HTTP_PROXY=$(http_proxy) \
-	--build-arg HTTPS_PROXY=$(https_proxy) \
-	--build-arg NO_PROXY=$(no_proxy) \
+	--build-arg http_proxy=$(http_proxy) \
+	--build-arg https_proxy=$(https_proxy) \
+	--build-arg no_proxy=$(no_proxy) \
 	-f Dockerfile.gaudi .
 
 .PHONY: gaudi-container-push

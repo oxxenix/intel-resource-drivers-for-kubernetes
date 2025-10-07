@@ -24,9 +24,9 @@ import (
 
 // These are set during build time via -ldflags.
 var (
-	driverVersion = "N/A"
-	gitCommit     = "N/A"
-	buildDate     = "N/A"
+	version   = "N/A"
+	gitCommit = "N/A"
+	buildDate = "N/A"
 )
 
 // GetVersion returns the version information of the driver.
@@ -40,7 +40,7 @@ Go Version:         %v,
 Compiler:           %v,
 Platform:           %v/%v`,
 		apiGroupName,
-		driverVersion,
+		version,
 		gitCommit,
 		buildDate,
 		runtime.Version(),
@@ -48,4 +48,16 @@ Platform:           %v/%v`,
 		runtime.GOOS,
 		runtime.GOARCH,
 	)
+}
+
+func GetVersion() string {
+	return version
+}
+
+func GetGitCommit() string {
+	return gitCommit
+}
+
+func GetBuildDate() string {
+	return buildDate
 }

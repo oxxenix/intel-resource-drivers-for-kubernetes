@@ -11,36 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a as build
-WORKDIR /build
-COPY . .
+FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a AS go
 
-RUN cd hack/fake_libhlml && \
-make clean && make
+FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab AS ubuntu
+COPY --from=go --chown=1000:1000 /usr/local/go /home/ubuntu/go
 
-FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a
-ARG UID=1000
-ARG GID=1000
-
-COPY --from=build /build/hack/fake_libhlml/fake_libhlml.so /usr/lib/habanalabs/libhlml.so
+# add xpu-smi shared library for GPU tests and other dependencies
+RUN \
+apt-get update && \
+apt-get install -y make gcc wget software-properties-common python3-launchpadlib git && \
+add-apt-repository -y ppa:kobuk-team/intel-graphics && \
+apt-get update && \
+apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-opencl-icd clinfo intel-gsc && \
+wget -qO /tmp/xpu-smi.deb https://github.com/intel/xpumanager/releases/download/V1.3.1/xpu-smi_1.3.1_20250724.061629.60921e5e_u24.04_amd64.deb && \
+apt-get install -y /tmp/xpu-smi.deb && \
+rm /tmp/xpu-smi.deb && \
+unset http_proxy https_proxy no_proxy && \
+echo 'export PATH=/home/ubuntu/go/bin:$PATH' >> /home/ubuntu/.bashrc
 
 RUN \
-echo "existing user: $(id $UID)" && \
-groupadd -g ${GID} ubuntu && \
-useradd -m -g ${GID} -u ${UID} -s /bin/bash ubuntu && \
 mkdir /github && \
-chmod 777 /github
-
-RUN \
-mkdir -m 755 /home/ubuntu/.cache/ && \
-mkdir -m 755 /home/ubuntu/.cache/go-build && \
-mkdir -m 755 /home/ubuntu/.cache/go-mod && \
-chown -R ubuntu:ubuntu /home/ubuntu/.cache && \
+chmod 777 /github && \
 mkdir /home/ubuntu/src && \
+chown 1000:1000 /home/ubuntu/src && \
 git config --global --add safe.directory /home/ubuntu/src
+
 
 ENV GOCACHE=/home/ubuntu/.cache/go-build
 ENV GOMODCACHE=/home/ubuntu/.cache/go-mod
+ENV PATH=/home/ubuntu/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 USER ubuntu
 WORKDIR /home/ubuntu

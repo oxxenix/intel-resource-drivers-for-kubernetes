@@ -18,3 +18,5 @@
 
 Chart.lock
 *.tgz
+
+*.patch

@@ -8,7 +8,7 @@ With structured parameters (K8s v1.31+), the DRA driver publishes ResourceSlice,
 the resources and resource driver's kubelet-plugin ensures that the allocated devices are prepared
 and available for Pods.
 
-DRA API graduated to v1beta1 in K8s v1.32. Latest DRA drivers support only K8s v1.32+.
+DRA API graduated to GA with v1 API in K8s v1.34. Latest DRA drivers support only K8s v1.34+.
 
 ## Host OS requirements
 
@@ -31,12 +31,13 @@ Supported Kubernetes versions are listed below:
 | Branch            | Kubernetes branch/version       | Status      | DRA                            |
 |:------------------|:--------------------------------|:------------|:-------------------------------|
 | v0.1.0            | Kubernetes v1.31                | unsupported | Structured Parameters          |
-| v0.2.0            | Kubernetes v1.32+               | unsupported | Structured Parameters          |
-| v0.3.0            | Kubernetes v1.33+               | supported   | Structured Parameters          |
+| v0.2.0            | Kubernetes v1.32                | unsupported | Structured Parameters          |
+| v0.3.0            | Kubernetes v1.33-v1.34          | unsupported | Structured Parameters          |
+| v0.4.0            | Kubernetes v1.34+               | supported   | Structured Parameters          |
 
 ## QAT service configuration
 
-In version 0.1.0 static configuration of QAT services is done using a ConfigMap,
+In version 0.1.0 static configuration of QAT services is using a ConfigMap,
 please have a look at
 [the example ConfigMap yaml](../../deployments/qat/examples/intel-qat-resource-driver-configuration.yaml).
 

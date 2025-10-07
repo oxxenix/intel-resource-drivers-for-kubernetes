@@ -1,4 +1,4 @@
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: qat-template-sym
@@ -17,7 +17,7 @@ spec:
               device.attributes["qat.intel.com"].services == "asym;sym" ||
               device.attributes["qat.intel.com"].services == "dc;sym"
 ---
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: qat-template-asym
@@ -36,7 +36,7 @@ spec:
               device.attributes["qat.intel.com"].services == "sym;asym" ||
               device.attributes["qat.intel.com"].services == "dc;asym"
 ---
-apiVersion: resource.k8s.io/v1beta1
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: qat-template-dc

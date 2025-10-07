@@ -55,9 +55,7 @@ const (
 	DriverName       = CDIClass + "." + CDIVendor
 	PCIAddressLength = len("0000:00:00.0")
 
-	PreparedClaimsFileName  = "preparedClaims.json"
-	PluginRegistrarFileName = DriverName + ".sock"
-	PluginSocketFileName    = "plugin.sock"
+	PreparedClaimsFileName = "preparedClaims.json"
 
 	DefaultNamingStyle       = "machine"
 	VisibleDevicesEnvVarName = "HABANA_VISIBLE_DEVICES"
@@ -74,8 +72,6 @@ type DeviceInfo struct {
 	DeviceIdx  uint64 `json:"deviceidx"`  // accel device number (e.g. 0 for /dev/accel/accel0)
 	ModuleIdx  uint64 `json:"moduleidx"`  // OAM slot number, needed for Habana Runtime to set networking
 	PCIRoot    string `json:"pciroot"`    // PCI Root complex ID
-	Serial     string `json:"serial"`     // Serial number obtained through HLML library
-	Healthy    bool   `json:"healthy"`    // True if device is usable, false otherwise
 }
 
 func (g DeviceInfo) CDIName() string {
