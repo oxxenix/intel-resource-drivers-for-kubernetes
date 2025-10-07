@@ -29,7 +29,7 @@ spec:
       - name: kubelet-plugin
         # `-v 5` is added for more verbose logging.
         command: ["/kubelet-gaudi-plugin", "-v", "5"]
-        image: intel/intel-gaudi-resource-driver:latest
+        image: ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gaudi-resource-driver:latest
         imagePullPolicy: Always
         env:
         - name: SYSFS_ROOT

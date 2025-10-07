@@ -5,7 +5,7 @@ selectorLabelsOverride: {}
 
 imagePullSecrets: []
 image:
-  repository: intel
+  repository: ghcr.io/intel/intel-resource-drivers-for-kubernetes
   name: intel-qat-resource-driver
   pullPolicy: IfNotPresent
   tag: "v0.4.0"

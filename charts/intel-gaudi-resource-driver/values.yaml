@@ -5,7 +5,7 @@ selectorLabelsOverride: {}
 
 imagePullSecrets: []
 image:
-  repository: intel
+  repository: ghcr.io/intel/intel-resource-drivers-for-kubernetes
   name: intel-gaudi-resource-driver
   pullPolicy: IfNotPresent
   tag: "v0.6.0"

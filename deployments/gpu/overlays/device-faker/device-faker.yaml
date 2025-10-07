@@ -8,7 +8,7 @@ spec:
     spec:
       initContainers:
       - name: device-faker
-        image: ger-is-registry.caas.intel.com/dgpu-orchestration/intel-device-faker:v0.4.1
+        image: registry.local/intel-device-faker:v0.4.1
         imagePullPolicy: Always
         command: ["/device-faker", "gpu", "-t", "/opt/templates/gpu-template.json", "-d", "/tmp/fake-root"]
         volumeMounts:
