@@ -57,9 +57,9 @@ func SyncDetectedDevicesWithRegistry(cdiCache *cdiapi.Cache, detectedDevices dev
 	if len(vendorSpecs) == 0 {
 		klog.V(5).Infof("No existing specs found for vendor %v, creating new", device.CDIVendor)
 		if err := addNewDevicesToNewRegistry(cdiCache, devicesToAdd); err != nil {
-			klog.V(5).Infof("Failed to add card to cdi registry: %v", err)
-			return err
+			return fmt.Errorf("error adding devices to a new CDI manifest: %v", err)
 		}
+		
 		return nil
 	}
 
@@ -198,6 +198,10 @@ func SyncDeviceNodes(
 
 // addNewDevicesToNewRegistry writes devices into new vendor-specific CDI spec, should only be called if such spec does not exist.
 func addNewDevicesToNewRegistry(cdiCache *cdiapi.Cache, devices device.DevicesInfo) error {
+	if len(devices) == 0 {
+		return nil
+	}
+
 	klog.V(5).Infof("Adding %v devices to new spec", len(devices))
 
 	spec := &specs.Spec{

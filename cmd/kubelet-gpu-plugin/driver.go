@@ -95,7 +95,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 
 	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery, xpusmiInitErr == nil)
 	if len(detectedDevices) == 0 {
-		klog.Info("No supported devices detected")
+		klog.Warning("No supported devices detected on this node")
 	}
 
 	klog.V(3).Info("Creating new NodeState")
