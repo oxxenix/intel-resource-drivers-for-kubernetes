@@ -62,6 +62,8 @@ spec:
             drop: [ "ALL" ]
           readOnlyRootFilesystem: true
           runAsUser: 0
+          # Note, OpenShift has 'runtime/default' as a default.
+          # See https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/seccomp-profiles#custom-seccomp-profile
           seccompProfile:
             type: RuntimeDefault
       volumes:
