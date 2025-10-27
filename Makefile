@@ -263,7 +263,7 @@ test-containerized:
 	-e http_proxy=$(http_proxy) \
 	-e https_proxy=$(https_proxy) \
 	-e no_proxy=$(no_proxy) \
-	--user 1000:1000 \
+	--user $(shell id -u):$(shell id -g) \
 	-v "$(shell pwd)":/home/ubuntu/src:rw \
 	"$(TEST_IMAGE)" \
 	bash -c "cd src && make test"
