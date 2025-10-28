@@ -277,20 +277,20 @@ $(COVERAGE_FILE): $(shell find cmd pkg -name '*.go')
 	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
 # gpu coverage
-gpu-coverage.out: $(shell find cmd/kubelet-gpu-plugin pkg/gpu -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gpu-plugin/... ./pkg/gpu/...)
+gpu-coverage.out: $(shell find cmd/kubelet-gpu-plugin pkg/gpu pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gpu-plugin/... ./pkg/gpu/... ./pkg/helpers/...)
 
 # qat coverage
 qat-coverage.out: $(shell find cmd/kubelet-qat-plugin cmd/qat-showdevice pkg/qat -name '*.go')
 	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-qat-plugin/... ./cmd/qat-showdevice/... ./pkg/qat/...)
 
 # gaudi coverage
-gaudi-coverage.out: $(shell find cmd/kubelet-gaudi-plugin pkg/gaudi -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gaudi-plugin/... ./pkg/gaudi/...)
+gaudi-coverage.out: $(shell find cmd/kubelet-gaudi-plugin pkg/gaudi pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gaudi-plugin/... ./pkg/gaudi/... ./pkg/helpers/...)
 
 # cdi-specs-generator coverage
-cdispecsgen-coverage.out: $(shell find cmd/cdi-specs-generator pkg/gpu pkg/gaudi -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/cdi-specs-generator/... ./pkg/gpu/... ./pkg/gaudi/...)
+cdispecsgen-coverage.out: $(shell find cmd/cdi-specs-generator pkg/gpu pkg/gaudi pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/cdi-specs-generator/... ./pkg/gpu/... ./pkg/gaudi/... ./pkg/helpers/...)
 
 .PHONY: %-coverage
 %-coverage: %-coverage.out
