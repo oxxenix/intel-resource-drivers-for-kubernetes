@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
 const (
@@ -73,14 +75,13 @@ func sanitizeFakeSysFsDir(sysfsRootUntrusted string) error {
 	return nil
 }
 
-func createDevice(filepath string) error {
+func createDevice(filepath string, real bool) error {
+	if !real {
+		return helpers.WriteFile(filepath, "")
+	}
+
 	mode := uint32(0644 | devNullType)
 	devid := int(unix.Mkdev(uint32(devNullMajor), uint32(devNullMinor)))
 
-	if err := unix.Mknod(filepath, mode, devid); err != nil {
-		return fmt.Errorf("NULL device (%d:%d) node creation failed for '%s': %w",
-			devNullMajor, devNullMinor, filepath, err)
-	}
-
-	return nil
+	return unix.Mknod(filepath, mode, devid)
 }

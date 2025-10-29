@@ -42,7 +42,7 @@ type driver struct {
 
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
-	sysfsDir := helpers.GetSysfsRoot(device.SysfsAccelPath)
+	sysfsDir := helpers.GetSysfsRoot(device.SysfsDriverPath)
 	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
 
 	detectedDevices := discovery.DiscoverDevices(sysfsDir, device.DefaultNamingStyle)

@@ -175,7 +175,7 @@ func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) e
 }
 
 func handleGaudiDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) error {
-	sysfsDir := helpers.GetSysfsRoot(gaudiDevice.SysfsAccelPath)
+	sysfsDir := helpers.GetSysfsRoot(gaudiDevice.SysfsAccelClassPath)
 
 	fmt.Println("Scanning for Gaudi accelerators")
 
