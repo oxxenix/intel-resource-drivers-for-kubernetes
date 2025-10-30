@@ -25,7 +25,7 @@ bin/kubelet-qat-plugin
 QAT_COMMON_SRC = \
 $(COMMON_SRC) \
 pkg/qat/device/*.go \
-pkg/qat/cdi/*.go
+pkg/qat/cdihelpers/*.go
 
 QAT_LDFLAGS = ${LDFLAGS} -extldflags $(EXT_LDFLAGS) -X ${PKG}/pkg/version.version=${QAT_VERSION}
 

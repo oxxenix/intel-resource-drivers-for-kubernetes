@@ -163,7 +163,7 @@ licenses: clean-licenses
 	"./pkg/gpu/cdihelpers" \
 	"./pkg/gpu/device" \
 	"./pkg/gpu/discovery" \
-	"./pkg/qat/cdi" \
+	"./pkg/qat/cdihelpers" \
 	"./pkg/qat/device" \
 	"./pkg/helpers" \
 	"./pkg/fakesysfs" \
