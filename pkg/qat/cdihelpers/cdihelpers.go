@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package cdi
+package cdihelpers
 
 import (
 	"fmt"
@@ -27,54 +27,28 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
 )
 
-const (
-	CDIRoot   = cdiapi.DefaultDynamicDir
-	CDIVendor = "intel.com"
-	CDIClass  = "qat"
-	CDIKind   = CDIVendor + "/" + CDIClass
-)
-
-type CDI struct {
-	cache *cdiapi.Cache
-}
-
-func New(cdidir string) (*CDI, error) {
-
-	if err := cdiapi.Configure(cdiapi.WithSpecDirs(cdidir)); err != nil {
-		return nil, fmt.Errorf("unable to refresh the CDI registry: %v", err)
-	}
-
-	cdiCache := cdiapi.GetDefaultCache()
-
-	cdi := &CDI{
-		cache: cdiCache,
-	}
-
-	return cdi, nil
-}
-
-func (c *CDI) getQatSpecs() []*cdiapi.Spec {
+func getQatSpecs(cdiCache *cdiapi.Cache) []*cdiapi.Spec {
 	qatSpecs := []*cdiapi.Spec{}
-	for _, cdiSpec := range c.cache.GetVendorSpecs(CDIVendor) {
-		if cdiSpec.Kind == CDIKind {
+	for _, cdiSpec := range cdiCache.GetVendorSpecs(device.CDIVendor) {
+		if cdiSpec.Kind == device.CDIKind {
 			qatSpecs = append(qatSpecs, cdiSpec)
 		}
 	}
 	return qatSpecs
 }
 
-func (c *CDI) SyncDevices(vfdevices device.VFDevices) error {
+func SyncDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
 	klog.V(5).Info("Syncing CDI devices")
 
 	vfspec := &cdispecs.Spec{
-		Kind: CDIKind,
+		Kind: device.CDIKind,
 	}
-	vfspecname := cdiapi.GenerateSpecName(CDIVendor, CDIClass)
+	vfspecname := cdiapi.GenerateSpecName(device.CDIVendor, device.CDIClass)
 
-	for _, vendorspec := range c.getQatSpecs() {
+	for _, vendorspec := range getQatSpecs(cdiCache) {
 		vendorspecname := path.Base(vendorspec.GetPath())
 
-		if vendorspec.Kind != CDIKind {
+		if vendorspec.Kind != device.CDIKind {
 			klog.V(5).Infof("Spec file %s is for other kind %s, skipping...", vendorspecname, vendorspec.Kind)
 			continue
 		}
@@ -102,7 +76,7 @@ func (c *CDI) SyncDevices(vfdevices device.VFDevices) error {
 		if vendorspecupdate {
 			if len(vendorspec.Devices) == 0 {
 				klog.V(5).Infof("No devices in spec %v, deleting it", vendorspecname)
-				if err := c.cache.RemoveSpec(vendorspecname); err != nil {
+				if err := cdiCache.RemoveSpec(vendorspecname); err != nil {
 					klog.Errorf("failed to remove empty CDI spec %v: %v", vendorspecname, err)
 				}
 				continue
@@ -112,20 +86,20 @@ func (c *CDI) SyncDevices(vfdevices device.VFDevices) error {
 			klog.Infof("Updating spec file %s with existing devices", path.Base(vendorspec.GetPath()))
 
 			vendorspec.Devices = vendorspecdevices
-			if err := c.cache.WriteSpec(vendorspec.Spec, vendorspecname); err != nil {
+			if err := cdiCache.WriteSpec(vendorspec.Spec, vendorspecname); err != nil {
 				klog.Errorf("Failed to update existing CDI spec file %s: %v", vendorspecname, err)
 			}
 		}
 	}
 
 	if len(vfdevices) > 0 {
-		return c.appendDevices(vfspec, vfdevices, vfspecname)
+		return appendDevices(cdiCache, vfspec, vfdevices, vfspecname)
 	}
 
 	return nil
 }
 
-func (c *CDI) adddevicespec(spec *cdispecs.Spec, vfdevices device.VFDevices) error {
+func addDeviceSpec(spec *cdispecs.Spec, vfdevices device.VFDevices) error {
 
 	for _, vf := range vfdevices {
 		cdidevice := cdispecs.Device{
@@ -143,11 +117,11 @@ func (c *CDI) adddevicespec(spec *cdispecs.Spec, vfdevices device.VFDevices) err
 	return nil
 }
 
-func (c *CDI) appendDevices(spec *cdispecs.Spec, vfdevices device.VFDevices, name string) error {
+func appendDevices(cdiCache *cdiapi.Cache, spec *cdispecs.Spec, vfdevices device.VFDevices, name string) error {
 
 	klog.V(5).Info("Append CDI devices")
 
-	if err := c.adddevicespec(spec, vfdevices); err != nil {
+	if err := addDeviceSpec(spec, vfdevices); err != nil {
 		return err
 	}
 
@@ -157,7 +131,7 @@ func (c *CDI) appendDevices(spec *cdispecs.Spec, vfdevices device.VFDevices, nam
 	}
 	spec.Version = version
 
-	err = c.cache.WriteSpec(spec, name)
+	err = cdiCache.WriteSpec(spec, name)
 	if err != nil {
 		return fmt.Errorf("failed to write CDI spec %s: %v", name, err)
 	}
@@ -166,13 +140,13 @@ func (c *CDI) appendDevices(spec *cdispecs.Spec, vfdevices device.VFDevices, nam
 	return nil
 }
 
-func (c *CDI) OverwriteDevices(vfdevices device.VFDevices) error {
+func OverwriteDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
 	var err error
 
 	klog.V(5).Info("Add/overwrite CDI devices")
 
 	spec := &cdispecs.Spec{
-		Kind: CDIKind,
+		Kind: device.CDIKind,
 	}
 
 	name, err := cdiapi.GenerateNameForSpec(spec)
@@ -180,5 +154,5 @@ func (c *CDI) OverwriteDevices(vfdevices device.VFDevices) error {
 		return fmt.Errorf("spec name not created: %v", err)
 	}
 
-	return c.appendDevices(spec, vfdevices, name)
+	return appendDevices(cdiCache, spec, vfdevices, name)
 }

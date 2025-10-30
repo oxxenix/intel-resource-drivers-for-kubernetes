@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 
@@ -19,7 +20,8 @@ import (
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
-	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
+	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
+	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
 )
 
@@ -28,27 +30,43 @@ const (
 	testNameSpace = "test-namespace-01"
 )
 
-func newFakeDriver(ctx context.Context) (*driver, error) {
-	qatdevices, err := device.New()
-	if err != nil {
-		return nil, err
+func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
+	config := &helpers.Config{
+		CommonFlags: &helpers.Flags{
+			NodeName:                  testNodeName,
+			CdiRoot:                   testDirs.CdiRoot,
+			KubeletPluginDir:          testDirs.KubeletPluginDir,
+			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+		},
+		Coreclient:  kubefake.NewSimpleClientset(),
+		DriverFlags: nil,
 	}
+
+	if err := os.MkdirAll(config.CommonFlags.KubeletPluginDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
+	}
+	if err := os.MkdirAll(config.CommonFlags.KubeletPluginsRegistryDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
+	}
+
+	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
 
 	// kubelet-plugin will access node object, it needs to exist.
 	newNode := &core.Node{ObjectMeta: metav1.ObjectMeta{Name: testNodeName}}
-	clientSet := kubefake.NewSimpleClientset()
-	if _, err := clientSet.CoreV1().Nodes().Create(ctx, newNode, metav1.CreateOptions{}); err != nil {
+	if _, err := config.Coreclient.CoreV1().Nodes().Create(context.TODO(), newNode, metav1.CreateOptions{}); err != nil {
 		return nil, fmt.Errorf("failed creating fake node object: %v", err)
 	}
 
-	d := &driver{
-		kubeclient: kubefake.NewSimpleClientset(),
-		nodename:   testNodeName,
-		devices:    qatdevices,
-		statefile:  "",
+	helperdriver, err := newDriver(context.TODO(), config)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating driver object: %v", err)
 	}
 
-	return d, nil
+	driver, ok := helperdriver.(*driver)
+	if !ok {
+		return nil, fmt.Errorf("type assertion failed: expected driver, got %T", driver)
+	}
+	return driver, err
 }
 
 func TestDriver(t *testing.T) {
@@ -78,16 +96,11 @@ func TestDriver(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	driver, err := newFakeDriver(context.TODO())
-	if err != nil {
-		t.Fatalf("could not create qatdevices with New(): %v", err)
-	}
-
 	testcases := []testCase{
 		{
 			name: "QAT allocate device",
 			request: []*resourcev1.ResourceClaim{
-				helpers.NewClaim(testNameSpace, "claim1", "uid1", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
+				testhelpers.NewClaim(testNameSpace, "claim1", "uid1", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid1": {
@@ -100,7 +113,7 @@ func TestDriver(t *testing.T) {
 		{
 			name: "QAT reallocate same device and same claim UID",
 			request: []*resourcev1.ResourceClaim{
-				helpers.NewClaim(testNameSpace, "claim-a", "uid1", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
+				testhelpers.NewClaim(testNameSpace, "claim-a", "uid1", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid1": {
@@ -113,7 +126,7 @@ func TestDriver(t *testing.T) {
 		{
 			name: "QAT device already allocated",
 			request: []*resourcev1.ResourceClaim{
-				helpers.NewClaim(testNameSpace, "claim2", "uid2", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
+				testhelpers.NewClaim(testNameSpace, "claim2", "uid2", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid2": {
@@ -124,7 +137,7 @@ func TestDriver(t *testing.T) {
 		{
 			name: "QAT two devices",
 			request: []*resourcev1.ResourceClaim{
-				helpers.NewClaim(testNameSpace, "claim3", "uid1", "request3", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-3", "qatvf-0000-bb-00-1"}),
+				testhelpers.NewClaim(testNameSpace, "claim3", "uid1", "request3", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-3", "qatvf-0000-bb-00-1"}),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid1": {
@@ -138,6 +151,14 @@ func TestDriver(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
+		testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+		defer testhelpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
+
+		driver, err := getFakeDriver(testDirs)
+		if err != nil {
+			t.Fatalf("could not create qatdevices with New(): %v", err)
+		}
+
 		t.Log(testcase.name)
 
 		response, err := driver.PrepareResourceClaims(context.TODO(), testcase.request)

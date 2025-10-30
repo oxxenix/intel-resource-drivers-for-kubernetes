@@ -7,7 +7,6 @@ package main
 import (
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/ptr"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
 )
@@ -16,11 +15,12 @@ func deviceResources(qatvfdevices device.VFDevices) *[]resourceapi.Device {
 	resourcedevices := []resourceapi.Device{}
 
 	for _, qatvfdevice := range qatvfdevices {
+		services := qatvfdevice.Services()
 		device := resourceapi.Device{
 			Name: qatvfdevice.UID(),
 			Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
 				"services": {
-					StringValue: ptr.To(qatvfdevice.Services()),
+					StringValue: &services,
 				},
 			},
 		}
