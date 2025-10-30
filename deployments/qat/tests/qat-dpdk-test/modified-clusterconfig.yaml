@@ -1,0 +1,38 @@
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+nodeRegistration:
+  criSocket: unix:///var/run/containerd/containerd.sock
+  imagePullPolicy: IfNotPresent
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: v1.34.0
+apiServer:
+  extraArgs:
+  - name: feature-gates
+    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true,DRAResourceClaimDeviceStatus=true,ResourceHealthStatus=true
+clusterName: kubernetes
+controllerManager:
+  extraArgs:
+  - name: feature-gates
+    value: DRADeviceTaints=true
+imageRepository: registry.k8s.io
+scheduler:
+  extraArgs:
+  - name: feature-gates
+    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+featureGates:
+  DRAExtendedResource: true
+  ResourceHealthStatus: true
+cpuManagerPolicy: static
+kubeReserved:
+  cpu: "1"
+  memory: "2Gi"
+  ephemeral-storage: "1Gi"
+systemReserved:
+  cpu: "1"
+  memory: "2Gi"
+  ephemeral-storage: "1Gi"
