@@ -257,6 +257,8 @@ else
 		go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 endif
 
+TEST_TARGET ?= test
+
 test-containerized:
 	$(DOCKER) run \
 	-it -e container=yes \
@@ -266,7 +268,7 @@ test-containerized:
 	--user $(shell id -u):$(shell id -g) \
 	-v "$(shell pwd)":/home/ubuntu/src:rw \
 	"$(TEST_IMAGE)" \
-	bash -c "cd src && make test"
+	bash -c "cd src && make $(TEST_TARGET)"
 
 html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
