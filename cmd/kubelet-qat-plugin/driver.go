@@ -12,12 +12,12 @@ import (
 	"sync"
 
 	resourceapi "k8s.io/api/resource/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
 	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
@@ -64,29 +64,33 @@ func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.Re
 }
 
 func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletplugin.NamespacedObject) (map[types.UID]error, error) {
-	klog.Infof("NodeUnprepareResource is called: number of claims: %d", len(claims))
+	klog.V(5).Infof("NodeUnprepareResource is called: number of claims: %d", len(claims))
 	response := map[types.UID]error{}
 
-	for _, claimDetails := range claims {
-		klog.Infof("NodeUnprepareResources: claim %s", claimDetails.UID)
-
-		claim, err := d.client.ResourceV1().ResourceClaims(claimDetails.Namespace).Get(ctx, claimDetails.Name, metav1.GetOptions{})
-		if err != nil {
-			return response, fmt.Errorf("failed to find ResourceClaim %s in namespace %s", claimDetails.Name, claimDetails.Namespace)
-		}
-
-		if claim.Status.Allocation == nil {
-			return response, fmt.Errorf("ResourceClaim %s is not allocated", claimDetails.Name)
-		}
+	var updateFound bool
+	for _, claim := range claims {
+		klog.Infof("NodeUnprepareResources: claim %s", claim.UID)
 
 		var updated bool
+		var err error
 		if updated, err = d.state.Unprepare(ctx, claim); err != nil {
 			response[claim.UID] = fmt.Errorf("error freeing devices: %v", err)
 			continue
 		}
+		updateFound = updateFound || updated
 
-		if updated {
-			d.PublishResourceSlice(ctx)
+		if err := cdihelpers.DeleteDeviceAndWrite(d.state.CdiCache, string(claim.UID)); err != nil {
+			response[claim.UID] = fmt.Errorf("error deleting CDI device: %v", err)
+			continue
+		}
+
+		response[claim.UID] = nil
+		klog.V(3).Infof("Freed devices for claim '%v'", claim.UID)
+	}
+
+	if updateFound {
+		if err := d.PublishResourceSlice(ctx); err != nil {
+			klog.Errorf("could not publish updated resource slice: %v", err)
 		}
 	}
 

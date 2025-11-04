@@ -24,7 +24,7 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/cdihelpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
-	resourceapi "k8s.io/api/resource/v1"
+
 	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
@@ -128,7 +128,7 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 		newDevice := kubeletplugin.Device{
 			Requests:     []string{allocatedDevice.Request},
 			PoolName:     allocatedDevice.Pool,
-			DeviceName:   allocatedDevice.Device,
+			DeviceName:   requestedDeviceUID,
 			CDIDeviceIDs: []string{cdidevicename, controldevicename},
 		}
 		preparedDevices.Devices = append(preparedDevices.Devices, newDevice)
@@ -136,11 +136,17 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 
 	s.Prepared[string(claim.UID)] = preparedDevices
 
+	if err := helpers.WritePreparedClaimsToFile(s.PreparedClaimsFilePath, s.Prepared); err != nil {
+		klog.Errorf("failed to write prepared claims to file: %v", err)
+		return fmt.Errorf("failed to write prepared claims to file: %v", err)
+	}
+
 	klog.V(5).Infof("Created prepared claim %v allocation", claim.UID)
 	return nil
 }
 
 func (s *nodeState) Allocate(requestedDeviceUID string, requestedService device.Services, requestedBy string) (*device.VFDevice, bool, error) {
+	//nolint:forcetypeassert
 	allocatableDevices := s.Allocatable.(device.VFDevices)
 	allocatableDevice := allocatableDevices[requestedDeviceUID]
 
@@ -159,14 +165,11 @@ func (s *nodeState) Allocate(requestedDeviceUID string, requestedService device.
 	return nil, false, fmt.Errorf("could not allocate device '%s', service '%s' from any device", requestedDeviceUID, requestedService.String())
 }
 
-func (s *nodeState) Unprepare(ctx context.Context, claim *resourceapi.ResourceClaim) (bool, error) {
-	s.Lock()
-	defer s.Unlock()
+func (s *nodeState) Unprepare(ctx context.Context, claim kubeletplugin.NamespacedObject) (bool, error) {
 
-	for _, deviceallocationresult := range claim.Status.Allocation.Devices.Results {
-		requestedDeviceUID := deviceallocationresult.Device
+	for _, requestedDevice := range s.Prepared[string(claim.UID)].Devices {
 		allocatableDevices, _ := s.Allocatable.(device.VFDevices)
-		requestedDevice := allocatableDevices[requestedDeviceUID]
+		requestedDevice := allocatableDevices[requestedDevice.DeviceName]
 
 		var updated bool
 		var err error
@@ -176,10 +179,9 @@ func (s *nodeState) Unprepare(ctx context.Context, claim *resourceapi.ResourceCl
 		}
 
 		if updated, err = requestedDevice.Free(string(claim.UID)); err != nil {
-			klog.Warningf("Could not free device %s claim '%s': %v", requestedDeviceUID, claim.UID, err)
-			continue
+			klog.Warningf("Could not free device %s claim '%s': %v", requestedDevice.UID(), claim.UID, err)
 		}
-		klog.V(5).Infof("Claim with uid '%s' freed", claim.GetUID())
+		klog.V(5).Infof("Claim with uid '%s' freed", claim.UID)
 
 		if updated {
 			return updated, nil
@@ -192,7 +194,7 @@ func (s *nodeState) Unprepare(ctx context.Context, claim *resourceapi.ResourceCl
 func (s *nodeState) GetResources() resourceslice.DriverResources {
 	allocatableDevices, ok := s.Allocatable.(device.VFDevices)
 	if !ok {
-		klog.Errorf("unexpected type for state.Allocatable")
+		klog.Error("unexpected type for state.Allocatable")
 		return resourceslice.DriverResources{}
 	}
 	klog.V(5).Infof("allocatable devices in GetResources: %v", allocatableDevices)
