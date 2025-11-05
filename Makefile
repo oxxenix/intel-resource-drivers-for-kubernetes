@@ -283,8 +283,8 @@ gpu-coverage.out: $(shell find cmd/kubelet-gpu-plugin pkg/gpu pkg/helpers -name 
 	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gpu-plugin/... ./pkg/gpu/... ./pkg/helpers/...)
 
 # qat coverage
-qat-coverage.out: $(shell find cmd/kubelet-qat-plugin cmd/qat-showdevice pkg/qat -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-qat-plugin/... ./cmd/qat-showdevice/... ./pkg/qat/...)
+qat-coverage.out: $(shell find cmd/kubelet-qat-plugin cmd/qat-showdevice pkg/qat pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-qat-plugin/... ./cmd/qat-showdevice/... ./pkg/qat/... ./pkg/helpers/...)
 
 # gaudi coverage
 gaudi-coverage.out: $(shell find cmd/kubelet-gaudi-plugin pkg/gaudi pkg/helpers -name '*.go')
