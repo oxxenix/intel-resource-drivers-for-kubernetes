@@ -15,10 +15,10 @@ import (
 // startHealthMonitor goroutine can be started and stopped cleanly.
 func TestStartHealthMonitor(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(gpudevice.DriverName)
+	defer testhelpers.CleanupTest(t, "GPU TestStartHealthMonitor", testDirs.TestRoot)
 	if err != nil {
 		t.Fatalf("setup error creating test dirs: %v", err)
 	}
-	defer testhelpers.CleanupTest(t, "TestWatchGPUHealthStatuses", testDirs.TestRoot)
 
 	testDevices := gpudevice.DevicesInfo{
 		"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16, Driver: "i915"},
@@ -59,10 +59,10 @@ func TestStartHealthMonitor(t *testing.T) {
 
 func TestUpdateHealth(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(gpudevice.DriverName)
+	defer testhelpers.CleanupTest(t, "GPU TestUpdateHealth", testDirs.TestRoot)
 	if err != nil {
 		t.Fatalf("setup error creating test dirs: %v", err)
 	}
-	defer testhelpers.CleanupTest(t, "TestGpuUpdateHealth", testDirs.TestRoot)
 
 	testDevices := gpudevice.DevicesInfo{
 		"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16, Driver: "i915"},
@@ -230,10 +230,10 @@ func TestUpdateHealth(t *testing.T) {
 
 func TestUpdateHealth_MultipleDevices(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(gpudevice.DriverName)
+	defer testhelpers.CleanupTest(t, "GPU TestUpdateHealth_MultipleDevices", testDirs.TestRoot)
 	if err != nil {
 		t.Fatalf("setup error creating test dirs: %v", err)
 	}
-	defer testhelpers.CleanupTest(t, "TestGpuUpdateHealth", testDirs.TestRoot)
 
 	testDevices := gpudevice.DevicesInfo{
 		"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16, Driver: "i915"},
