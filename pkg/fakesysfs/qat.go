@@ -121,24 +121,21 @@ func FakeSysFsQATVFContents(sysfsRoot string, pcipath string, totalvfs int, devi
 	return nil
 }
 
-func FakeSysFsQATContents(qatdevices QATDevices) error {
-	os.Setenv("SYSFS_ROOT", helpers.TestSysfsRoot)
-	os.Setenv("DEVFS_ROOT", helpers.TestDevfsRoot)
-
+func FakeSysFsQATContents(sysfsRoot string, qatdevices QATDevices) error {
 	// ...bus/pci/drivers/<moduleName>
-	kerneldriverdir := path.Join(helpers.TestSysfsRoot, sysfsDriverPath, moduleName)
+	kerneldriverdir := path.Join(sysfsRoot, sysfsDriverPath, moduleName)
 	if err := os.MkdirAll(kerneldriverdir, 0755); err != nil {
 		return fmt.Errorf("creating fake sysfs driver dir: %v", err)
 	}
 
 	// ...bus/pci/drivers/vfio-pci
-	vfiopcidriverdir := path.Join(helpers.TestSysfsRoot, sysfsDriverPath, vfioPCI)
+	vfiopcidriverdir := path.Join(sysfsRoot, sysfsDriverPath, vfioPCI)
 	if err := os.MkdirAll(vfiopcidriverdir, 0755); err != nil {
 		return fmt.Errorf("creating fake sysfs pci driver dir: %v", err)
 	}
 
 	// ...bus/pci/devices
-	pcidevicedir := path.Join(helpers.TestSysfsRoot, sysfsDevicePath)
+	pcidevicedir := path.Join(sysfsRoot, sysfsDevicePath)
 	if err := os.MkdirAll(pcidevicedir, 0755); err != nil {
 		return fmt.Errorf("creating fake sysfs device dir: %v", err)
 	}
@@ -146,7 +143,7 @@ func FakeSysFsQATContents(qatdevices QATDevices) error {
 	iommu := 350
 	for _, pf := range qatdevices {
 		// ...devices/pci/pcixxx:xx/xxxx:xx:xx.x
-		devicedir := path.Join(helpers.TestSysfsRoot, pcipath(pf.Device), pf.Device)
+		devicedir := path.Join(sysfsRoot, pcipath(pf.Device), pf.Device)
 		if err := os.MkdirAll(devicedir, 0755); err != nil {
 			return fmt.Errorf("creating fake sysfs device dir: %v", err)
 		}
@@ -170,15 +167,10 @@ func FakeSysFsQATContents(qatdevices QATDevices) error {
 			return fmt.Errorf("creating fake sysfs device driver files: %v", err)
 		}
 
-		if err := FakeSysFsQATVFContents(helpers.TestSysfsRoot, pcipath(pf.Device), pf.TotalVFs, pf.Device, &iommu); err != nil {
+		if err := FakeSysFsQATVFContents(sysfsRoot, pcipath(pf.Device), pf.TotalVFs, pf.Device, &iommu); err != nil {
 			return fmt.Errorf("creating fake sysfs VF files: %v", err)
 		}
 	}
 
 	return nil
-}
-
-func FakeFsRemove() {
-	os.RemoveAll(helpers.TestSysfsRoot)
-	os.RemoveAll(helpers.TestDevfsRoot)
 }

@@ -59,7 +59,6 @@ func SyncDetectedDevicesWithRegistry(cdiCache *cdiapi.Cache, detectedDevices dev
 		if err := addNewDevicesToNewRegistry(cdiCache, devicesToAdd); err != nil {
 			return fmt.Errorf("error adding devices to a new CDI manifest: %v", err)
 		}
-		
 		return nil
 	}
 

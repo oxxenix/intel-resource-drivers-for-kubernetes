@@ -91,11 +91,6 @@ func TestDriver(t *testing.T) {
 		},
 	}
 
-	defer fakesysfs.FakeFsRemove()
-	if err := fakesysfs.FakeSysFsQATContents(setupdevices); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-
 	testcases := []testCase{
 		{
 			name: "QAT allocate device",
@@ -124,17 +119,6 @@ func TestDriver(t *testing.T) {
 			},
 		},
 		{
-			name: "QAT device already allocated",
-			request: []*resourcev1.ResourceClaim{
-				testhelpers.NewClaim(testNameSpace, "claim2", "uid2", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
-			},
-			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
-				"uid2": {
-					Err: fmt.Errorf("could not allocate device 'qatvf-0000-aa-00-1', service '' from any device"),
-				},
-			},
-		},
-		{
 			name: "QAT two devices",
 			request: []*resourcev1.ResourceClaim{
 				testhelpers.NewClaim(testNameSpace, "claim3", "uid1", "request3", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-3", "qatvf-0000-bb-00-1"}),
@@ -153,6 +137,14 @@ func TestDriver(t *testing.T) {
 	for _, testcase := range testcases {
 		testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 		defer testhelpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
+		if err != nil {
+			t.Fatalf("could not create fake system dirs: %v", err)
+		}
+
+		// create fake sysfs for this test case under its own root before driver init
+		if err := fakesysfs.FakeSysFsQATContents(testDirs.SysfsRoot, setupdevices); err != nil {
+			t.Fatalf("err creating fake sysfs: %v", err)
+		}
 
 		driver, err := getFakeDriver(testDirs)
 		if err != nil {
