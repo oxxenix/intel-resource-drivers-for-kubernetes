@@ -6,12 +6,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"sync"
 
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
@@ -99,11 +101,6 @@ func (d *driver) PublishResourceSlice(ctx context.Context) error {
 	return nil
 }
 
-func (d *driver) HandleError(ctx context.Context, err error, message string) {
-	// TODO: FIXME: error is ignored ATM, handle it properly.
-	klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error")
-}
-
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
 	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
@@ -169,4 +166,23 @@ func (d *driver) Shutdown(ctx context.Context) error {
 	d.helper.Stop()
 
 	return nil
+}
+
+// HandleError is called by Kubelet when an error occures asyncronously, and
+// needs to be communicated to the DRA driver.
+//
+// This is a mandatory method because drivers should check for errors
+// which won't get resolved by retrying and then fail or change the
+// slices that they are trying to publish:
+// - dropped fields (see [resourceslice.DroppedFieldsError])
+// - validation errors (see [apierrors.IsInvalid]).
+func (d *driver) HandleError(ctx context.Context, err error, message string) {
+	if errors.Is(err, kubeletplugin.ErrRecoverable) {
+		// TODO: FIXME: error is ignored ATM, handle it properly.
+		klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error.")
+	} else {
+		klog.FromContext(ctx).Error(err, "Unrecoverable error.")
+	}
+
+	runtime.HandleErrorWithContext(ctx, err, message)
 }
