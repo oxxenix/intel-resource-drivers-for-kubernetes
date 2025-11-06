@@ -7,7 +7,6 @@ package main
 import (
 	"context"
 	"fmt"
-
 	"path"
 	"sync"
 
@@ -23,10 +22,6 @@ import (
 	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
-const (
-	driverName = "qat.intel.com"
-)
-
 type driver struct {
 	sync.Mutex
 	client coreclientset.Interface
@@ -40,7 +35,7 @@ func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceap
 	response := map[types.UID]kubeletplugin.PrepareResult{}
 
 	for _, claim := range claims {
-		klog.Infof("NodePrepareResources: claim %s", claim.UID)
+		klog.V(5).Infof("NodePrepareResources: claim %s", claim.UID)
 		response[claim.UID] = d.prepareResourceClaim(ctx, claim)
 	}
 
@@ -48,7 +43,7 @@ func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceap
 }
 
 func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.ResourceClaim) kubeletplugin.PrepareResult {
-	klog.Infof("NodePrepareResource is called for claim %v", claim.UID)
+	klog.V(5).Infof("prepareResourceClaim is called for claim %v", claim.UID)
 	if claimPreparation, found := d.state.Prepared[string(claim.UID)]; found {
 		klog.V(3).Infof("Claim %v was already prepared, nothing to do", claim.UID)
 		return claimPreparation
@@ -64,13 +59,11 @@ func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.Re
 }
 
 func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletplugin.NamespacedObject) (map[types.UID]error, error) {
-	klog.V(5).Infof("NodeUnprepareResource is called: number of claims: %d", len(claims))
+	klog.V(5).Infof("UnprepareResourceClaims is called: number of claims: %d", len(claims))
 	response := map[types.UID]error{}
 
 	var updateFound bool
 	for _, claim := range claims {
-		klog.Infof("NodeUnprepareResources: claim %s", claim.UID)
-
 		var updated bool
 		var err error
 		if updated, err = d.state.Unprepare(ctx, claim); err != nil {
@@ -125,7 +118,6 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 			return nil, fmt.Errorf("cannot enable PF device '%s': %v", pf.Device, err)
 		}
 	}
-	// WHAT IS THIS?
 	if err := getDefaultConfiguration(config.CommonFlags.NodeName, pfdevices); err != nil {
 		klog.Warningf("Cannot apply default configuration: %vn", err)
 	}
@@ -164,7 +156,7 @@ PluginDataDirectoryPath: %v`,
 	driver.helper = helper
 
 	if err := driver.PublishResourceSlice(ctx); err != nil {
-		return nil, fmt.Errorf("startup error: %v", err)
+		return nil, fmt.Errorf("could not publish ResourceSlice: %v", err)
 	}
 
 	klog.V(3).Info("Finished creating new driver")

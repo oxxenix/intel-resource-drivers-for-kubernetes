@@ -95,10 +95,10 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 	preparedDevices := kubeletplugin.PrepareResult{}
 
 	for _, allocatedDevice := range claim.Status.Allocation.Devices.Results {
-		if allocatedDevice.Driver != driverName || allocatedDevice.Pool != s.NodeName {
+		if allocatedDevice.Driver != device.DriverName || allocatedDevice.Pool != s.NodeName {
 			klog.V(5).Infof("Driver/pool '%s/%s' not handled by driver (%s/%s)",
 				allocatedDevice.Driver, allocatedDevice.Pool,
-				driverName, s.NodeName)
+				device.DriverName, s.NodeName)
 
 			continue
 		}
@@ -119,17 +119,17 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 			return fmt.Errorf("could not allocate device '%s' for claim '%s': %v", requestedDeviceUID, claim.UID, err)
 		}
 
-		cdidevicename := allocatableDevice.CDIName()
-		controldevicenode, _ := device.GetControlNode()
-		controldevicename := device.CDIKind + "=" + controldevicenode.UID()
-		klog.V(5).Infof("Allocated CDI devices '%s' and '%s' for claim '%s'", cdidevicename, controldevicename, claim.GetUID())
+		cdiDeviceName := allocatableDevice.CDIName()
+		controlDeviceNode, _ := device.GetControlNode()
+		controlDeviceName := device.CDIKind + "=" + controlDeviceNode.UID()
+		klog.V(5).Infof("Allocated CDI devices '%s' and '%s' for claim '%s'", cdiDeviceName, controlDeviceName, claim.GetUID())
 
 		// add device
 		newDevice := kubeletplugin.Device{
 			Requests:     []string{allocatedDevice.Request},
 			PoolName:     allocatedDevice.Pool,
 			DeviceName:   requestedDeviceUID,
-			CDIDeviceIDs: []string{cdidevicename, controldevicename},
+			CDIDeviceIDs: []string{cdiDeviceName, controlDeviceName},
 		}
 		preparedDevices.Devices = append(preparedDevices.Devices, newDevice)
 	}
