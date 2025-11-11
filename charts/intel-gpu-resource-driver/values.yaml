@@ -5,7 +5,7 @@ selectorLabelsOverride: {}
 
 imagePullSecrets: []
 image:
-  repository: intel
+  repository: ghcr.io/intel/intel-resource-drivers-for-kubernetes
   name: intel-gpu-resource-driver
   pullPolicy: IfNotPresent
   tag: "v0.9.0"
@@ -20,9 +20,6 @@ kubeletPlugin:
   podAnnotations: {}
   nodeSelector: {} # ignored when .Values.nodeFeatureRules.enabled or .Values.nfd.enabled
   tolerations:
-    - key: node-role.kubernetes.io/master
-      operator: Exists
-      effect: NoSchedule
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
       effect: NoSchedule
