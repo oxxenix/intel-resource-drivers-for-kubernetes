@@ -1,0 +1,40 @@
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: intel-gaudi-resource-driver
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: true
+allowPrivilegedContainer: true
+allowedCapabilities:
+- ''
+allowedUnsafeSysctls: null
+defaultAddCapabilities: null
+fsGroup:
+  type: RunAsAny
+groups:
+- system:cluster-admins
+- system:nodes
+- system:masters
+priority: null
+readOnlyRootFilesystem: false
+requiredDropCapabilities: ['ALL']
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+# OpenShift has runtime/default as a name of default profile.
+# See https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/seccomp-profiles#custom-seccomp-profile
+seccompProfiles:
+- 'runtime/default'
+supplementalGroups:
+  type: RunAsAny
+userNamespaceLevel: AllowHostLevel
+users:
+- system:admin
+- system:serviceaccount:intel-gaudi-resource-driver:intel-gaudi-resource-driver-service-account
+volumes:
+- '*'
