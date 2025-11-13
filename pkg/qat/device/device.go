@@ -592,14 +592,12 @@ func (p *PFDevice) free(requestedDeviceUID string, requestedBy string) (bool, er
 	}
 
 	if requestedBy != "" {
-		update, err := p.freePF(requestedDeviceUID, requestedBy)
-		return update, err
-	} else {
-		for requestedBy := range p.AllocatedDevices {
-			update, err := p.freePF(requestedDeviceUID, requestedBy)
-			if err == nil {
-				return update, err
-			}
+		return p.freePF(requestedDeviceUID, requestedBy)
+	}
+
+	for requestedBy := range p.AllocatedDevices {
+		if update, err := p.freePF(requestedDeviceUID, requestedBy); err == nil {
+			return update, nil
 		}
 	}
 
