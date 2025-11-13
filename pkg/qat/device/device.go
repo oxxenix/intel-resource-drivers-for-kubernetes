@@ -673,10 +673,6 @@ func (v *VFDevice) Driver() string {
 	return v.VFDriver.String()
 }
 
-func (v *VFDevice) Iommu() string {
-	return v.VFIommu
-}
-
 func deviceuid(device string) string {
 	return "qatvf-" + strings.ReplaceAll(strings.ReplaceAll(device, ":", "-"), ".", "-")
 }
