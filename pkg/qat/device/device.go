@@ -364,6 +364,7 @@ func (p *PFDevice) SetServices(srv []Services) error {
 		return err
 	}
 
+	p.Services = config
 	return nil
 }
 
@@ -547,13 +548,14 @@ func (v VFDevice) AllocateWithReconfiguration(service Services, requester string
 	if v.pfdevice.Services != None || !v.pfdevice.AllowReconfiguration {
 		return false
 	}
-	if _, err := v.pfdevice.Allocate(v.UID(), requester); err == nil {
-		if err := v.pfdevice.SetServices([]Services{service}); err == nil {
-			return true
-		}
+	if err := v.pfdevice.SetServices([]Services{service}); err != nil {
 		_, _ = v.pfdevice.free(v.UID(), requester)
+		return false
 	}
-	return false
+	if _, err := v.pfdevice.Allocate(v.UID(), requester); err != nil {
+		return false
+	}
+	return true
 }
 
 func (v *VFDevice) Free(requestedBy string) (bool, error) {
