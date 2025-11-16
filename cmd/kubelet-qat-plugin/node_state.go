@@ -77,10 +77,8 @@ func newNodeState(detectedDevices device.VFDevices, cdiRoot string, preparedClai
 		},
 	}
 
-	allocatableDevices, ok := state.Allocatable.(device.VFDevices)
-	if !ok {
-		return nil, fmt.Errorf("unexpected type for state.Allocatable")
-	}
+	//nolint:forcetypeassert
+	allocatableDevices := state.Allocatable.(device.VFDevices)
 	for duid, ddev := range allocatableDevices {
 		klog.V(5).Infof("Allocatable device: %v : %+v", duid, ddev)
 	}
@@ -192,11 +190,8 @@ func (s *nodeState) Unprepare(ctx context.Context, claim kubeletplugin.Namespace
 }
 
 func (s *nodeState) GetResources() resourceslice.DriverResources {
-	allocatableDevices, ok := s.Allocatable.(device.VFDevices)
-	if !ok {
-		klog.Error("unexpected type for state.Allocatable")
-		return resourceslice.DriverResources{}
-	}
+	//nolint:forcetypeassert // We want the code to panic if our assumption turns out to be wrong.
+	allocatableDevices := s.Allocatable.(device.VFDevices)
 	klog.V(5).Infof("allocatable devices in GetResources: %v", allocatableDevices)
 	return resourceslice.DriverResources{
 		Pools: map[string]resourceslice.Pool{
