@@ -55,3 +55,16 @@ You may also run `helm show values` on this chart's dependencies for additional 
 
 > [!Note]
 > If you change the image tag to be used in Helm chart deployment, ensure that the version of the container image is consistent with deployment YAMLs - they might change between releases.
+
+## Deploying to RedHat OpenShift Container Platform
+
+```console
+helm install \
+    --set openshift.enabled=true \
+    --namespace intel-gaudi-resource-driver \
+    --create-namespace \
+    intel-gaudi-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gaudi-resource-driver-chart
+```
+
+> [!NOTE]
+> Chart contains SecurityContextConstraints, which requires cluster admin privileges. Ensure the chart is installed by the cluster admin.

@@ -3,6 +3,11 @@ nameOverride: ""
 fullnameOverride: ""
 selectorLabelsOverride: {}
 
+# To enable DRA resources allocation as extended resources. K8s v1.33-v1.36 requires FeatureGate.
+# See https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5004-dra-extended-resource .
+enableDRAExtendedResources: false
+extendedResourceName: intel.com/gaudi
+
 imagePullSecrets: []
 image:
   repository: ghcr.io/intel/intel-resource-drivers-for-kubernetes
@@ -16,10 +21,15 @@ serviceAccount:
   name: ""
   automount: true
 
+openshift:
+  enabled: false
+  sccName: intel-gaudi-resource-driver
+
 kubeletPlugin:
   podAnnotations: {}
   nodeSelector: {}
-  # label used when nfd.enabled is true
+    # Label used when nfd.enabled is true.
+    # Changes to this are ignored when .Values.nodeFeatureRules.enabled or .Values.nfd.enabled .
     #intel.feature.node.kubernetes.io/gaudi: "true"
   tolerations:
     - key: node-role.kubernetes.io/master
@@ -39,6 +49,9 @@ kubeletPlugin:
 cdi:
   staticPath: /etc/cdi
   dynamicPath: /var/run/cdi
+
+nodeFeatureRules:
+  enabled: false
 
 nfd:
   enabled: false # change to true to install NFD to the cluster
