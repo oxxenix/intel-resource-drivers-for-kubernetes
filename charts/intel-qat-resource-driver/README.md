@@ -72,3 +72,16 @@ Try reseting QAT by reloading its kernel driver:
 rmmod qat_4xxx
 modprobe qat_4xxx
 ```
+
+## Deploying to RedHat OpenShift Container Platform
+
+```console
+helm install \
+    --set openshift.enabled=true \
+    --namespace "intel-qat-resource-driver" \
+    --create-namespace \
+    intel-qat-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-qat-resource-driver-chart
+```
+
+> [!NOTE]
+> Chart contains SecurityContextConstraints, which requires cluster admin privileges. Ensure the chart is installed by the cluster admin.
