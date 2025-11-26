@@ -123,7 +123,16 @@ func TestGetAccelIndex(t *testing.T) {
 
 func TestDiscoverDevices(t *testing.T) {
 	testDevicesInfo := device.DevicesInfo{
-		"0000-0f-00-0-0x1020": {Model: "0x1020", ModelName: "Gaudi2", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, ModuleIdx: 0, UID: "0000-0f-00-0-0x1020", PCIRoot: "01"},
+		"0000-0f-00-0-0x1020": {
+			Model:      "0x1020",
+			ModelName:  "Gaudi2",
+			PCIAddress: "0000:0f:00.0",
+			DeviceIdx:  0,
+			ModuleIdx:  0,
+			UID:        "0000-0f-00-0-0x1020",
+			PCIRoot:    "01",
+			UVerbsIdx:  1024,
+		},
 	}
 
 	tests := []struct {

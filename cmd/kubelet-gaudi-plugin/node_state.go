@@ -137,11 +137,11 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 
 // cdiHabanaEnvVar ensures there is a CDI device with name == claimUID, that has
 // only env vars for Habana Runtime, without device nodes.
-func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string) error {
+func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string, visibleModules string, hlVisibleDevices string) error {
 	cdidev := s.CdiCache.GetDevice(claimUID)
 	if cdidev != nil { // overwrite the contents
 		cdidev.ContainerEdits = cdiSpecs.ContainerEdits{
-			Env: []string{visibleDevices},
+			Env: []string{visibleDevices, visibleModules, hlVisibleDevices},
 		}
 
 		// Save into the same spec where the device was found.
@@ -158,7 +158,7 @@ func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string) erro
 	newDevice := cdiSpecs.Device{
 		Name: claimUID,
 		ContainerEdits: cdiSpecs.ContainerEdits{
-			Env: []string{visibleDevices},
+			Env: []string{visibleDevices, visibleModules, hlVisibleDevices},
 		},
 	}
 
@@ -230,6 +230,8 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 func (s *nodeState) prepareAllocatedDevices(ctx context.Context, claim *resourcev1.ResourceClaim) (allocatedDevices kubeletplugin.PrepareResult, err error) {
 	allocatedDevices = kubeletplugin.PrepareResult{}
 	visibleDevices := device.VisibleDevicesEnvVarName + "="
+	visibleModules := device.VisibleModulesEnvVarName + "="
+	hlVisibleDevices := device.HLVisibleDevicesEnvVarName + "="
 
 	for _, allocatedDevice := range claim.Status.Allocation.Devices.Results {
 		// ATM the only pool is cluster node's pool: all devices on current node.
@@ -255,12 +257,16 @@ func (s *nodeState) prepareAllocatedDevices(ctx context.Context, claim *resource
 
 		if len(allocatedDevices.Devices) > 1 {
 			visibleDevices += ","
+			visibleModules += ","
+			hlVisibleDevices += ","
 		}
 		visibleDevices += fmt.Sprintf("%v", allocatableDevice.DeviceIdx)
+		visibleModules += fmt.Sprintf("%v", allocatableDevice.ModuleIdx)
+		hlVisibleDevices += fmt.Sprintf("/dev/accel/accel%d", allocatableDevice.DeviceIdx)
 	}
 
 	if len(allocatedDevices.Devices) > 0 {
-		if err := s.cdiHabanaEnvVar(string(claim.UID), visibleDevices); err != nil {
+		if err := s.cdiHabanaEnvVar(string(claim.UID), visibleDevices, visibleModules, hlVisibleDevices); err != nil {
 			return allocatedDevices, fmt.Errorf("failed to ensure Habana Runtime specific CDI device: %v", err)
 		}
 

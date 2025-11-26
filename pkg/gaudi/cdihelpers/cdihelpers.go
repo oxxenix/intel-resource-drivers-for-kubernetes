@@ -100,7 +100,7 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 			if detectedDevice, found := devices[specDevice.Name]; found {
 
 				// always update the device nodes
-				specDevice.ContainerEdits.DeviceNodes = newContainerEditsDeviceNodes(detectedDevice.DeviceIdx)
+				specDevice.ContainerEdits.DeviceNodes = newContainerEditsDeviceNodes(detectedDevice.DeviceIdx, detectedDevice.UVerbsIdx)
 				filteredDevices = append(filteredDevices, specDevice)
 				// Regardless if we needed to update the existing device or not,
 				// it is in CDI registry so no need to add it again later.
@@ -166,7 +166,7 @@ func addDevicesToSpecAndWrite(cdiCache *cdiapi.Cache, devices device.DevicesInfo
 		newDevice := cdiSpecs.Device{
 			Name: name,
 			ContainerEdits: cdiSpecs.ContainerEdits{
-				DeviceNodes: newContainerEditsDeviceNodes(device.DeviceIdx),
+				DeviceNodes: newContainerEditsDeviceNodes(device.DeviceIdx, device.UVerbsIdx),
 			},
 		}
 		// TODO: add missing files, if any, when discovery is in place.
@@ -221,9 +221,10 @@ func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) err
 	return addDevicesToSpecAndWrite(cdiCache, devices, spec, specName)
 }
 
-func newContainerEditsDeviceNodes(deviceIdx uint64) []*cdiSpecs.DeviceNode {
+func newContainerEditsDeviceNodes(deviceIdx uint64, uverbsIdx uint64) []*cdiSpecs.DeviceNode {
 	accelDevPath := device.GetAccelDevfsPath()
-	return []*cdiSpecs.DeviceNode{
+	infinibandDevPath := device.GetInfinibandDevfsPath()
+	deviceNodes := []*cdiSpecs.DeviceNode{
 		{
 			Path:     path.Join(containerDevfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)),
 			HostPath: path.Join(accelDevPath, fmt.Sprintf("accel%d", deviceIdx)),
@@ -234,4 +235,14 @@ func newContainerEditsDeviceNodes(deviceIdx uint64) []*cdiSpecs.DeviceNode {
 			Type:     "c",
 		},
 	}
+
+	if uverbsIdx != device.UverbsMissingIdx {
+		deviceNodes = append(deviceNodes, &cdiSpecs.DeviceNode{
+			Path:     path.Join(containerDevfsRoot, device.DevfsInfiniBandPath, fmt.Sprintf("uverbs%d", uverbsIdx)),
+			HostPath: path.Join(infinibandDevPath, fmt.Sprintf("uverbs%d", uverbsIdx)),
+			Type:     "c",
+		})
+	}
+
+	return deviceNodes
 }

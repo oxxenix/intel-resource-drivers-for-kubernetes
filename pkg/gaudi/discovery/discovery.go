@@ -83,6 +83,12 @@ func scanDevicesFromDriverDirFiles(driverDirFiles []os.DirEntry, sysfsDriverDir 
 			continue
 		}
 
+		uverbsIdx, err := getUverbsId(driverDeviceDir)
+		if err != nil {
+			klog.Warningf("could not detect device %v InfiniBand index: %v", devicePCIAddress, err)
+			uverbsIdx = device.UverbsMissingIdx
+		}
+
 		uid := helpers.DeviceUIDFromPCIinfo(devicePCIAddress, deviceId)
 		klog.V(5).Infof("New gaudi UID: %v", uid)
 		newDeviceInfo := &device.DeviceInfo{
@@ -92,6 +98,7 @@ func scanDevicesFromDriverDirFiles(driverDirFiles []os.DirEntry, sysfsDriverDir 
 			DeviceIdx:  deviceIdx,
 			ModuleIdx:  moduleIdx,
 			PCIRoot:    helpers.DeterminePCIRoot(driverDeviceDir),
+			UVerbsIdx:  uverbsIdx,
 		}
 		// Set user-friendly ModelName field.
 		newDeviceInfo.SetModelName()
@@ -111,7 +118,7 @@ func determineDeviceName(info *device.DeviceInfo, namingStyle string) string {
 }
 
 func getAccelIndex(accelDir string) (uint64, error) {
-	matches, _ := filepath.Glob(path.Join(accelDir, "accel[0-9]*"))
+	matches, _ := filepath.Glob(path.Join(accelDir, device.AccelDevicePattern))
 	if len(matches) != 1 {
 		return 0, fmt.Errorf("could not find matching accel device file")
 	}
@@ -139,4 +146,21 @@ func getModuleId(driverDeviceDir string) (uint64, error) {
 	}
 
 	return moduleIdx, nil
+}
+
+func getUverbsId(driverDeviceDir string) (uint64, error) {
+	targetPath := path.Join(driverDeviceDir, device.InfinibandVerbsDirName, device.InfinibandVerbsPattern)
+	matches, _ := filepath.Glob(targetPath)
+	if len(matches) != 1 {
+		return 0, fmt.Errorf("could not find matching infiniband device file in %s. Found: %d", targetPath, len(matches))
+	}
+
+	uverbsFileName := filepath.Base(matches[0])
+	uverbsIdx, err := strconv.ParseUint(uverbsFileName[6:], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert infiniband device %v uverbs index to a number: %v", uverbsFileName, err)
+	}
+
+	klog.V(5).Infof("found InfiniBand link %v", uverbsIdx)
+	return uverbsIdx, nil
 }

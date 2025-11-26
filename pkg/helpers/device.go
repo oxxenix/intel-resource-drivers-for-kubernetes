@@ -43,14 +43,14 @@ func GetSysfsRoot(sysfsPath string) string {
 
 	if found {
 		if _, err := os.Stat(path.Join(sysfsRoot, sysfsPath)); err == nil {
-			fmt.Printf("using custom sysfs location: %v\n", sysfsRoot)
+			klog.V(5).Infof("using custom sysfs location: %v\n", sysfsRoot)
 			return sysfsRoot
 		} else {
-			fmt.Printf("could not find sysfs at '%v' from %v env var: %v\n", sysfsPath, SysfsEnvVarName, err)
+			klog.V(5).Infof("could not find sysfs at '%v' from %v env var: %v\n", sysfsPath, SysfsEnvVarName, err)
 		}
 	}
 
-	fmt.Printf("using default sysfs location: %v\n", sysfsDefaultRoot)
+	klog.V(5).Infof("using default sysfs location: %v\n", sysfsDefaultRoot)
 	// If /sys is not available, devices discovery will fail gracefully.
 	return sysfsDefaultRoot
 }
@@ -60,14 +60,14 @@ func GetDevRoot(devfsRootEnvVarName string, devPath string) string {
 
 	if found {
 		if _, err := os.Stat(path.Join(devfsRoot, devPath)); err == nil {
-			fmt.Printf("using custom devfs location: %v\n", devfsRoot)
+			klog.V(5).Infof("using custom devfs location: %v\n", devfsRoot)
 			return devfsRoot
 		} else {
-			fmt.Printf("could not find devfs at '%v' from %v env var: %v\n", devPath, devfsRootEnvVarName, err)
+			klog.V(5).Infof("could not find devfs at '%v' from %v env var: %v\n", devPath, devfsRootEnvVarName, err)
 		}
 	}
 
-	fmt.Printf("using default devfs root: %v\n", devfsDefaultRoot)
+	klog.V(5).Infof("using default devfs root: %v\n", devfsDefaultRoot)
 	return devfsDefaultRoot
 }
 
