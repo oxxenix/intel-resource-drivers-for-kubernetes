@@ -48,11 +48,6 @@ func SyncDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
 	for _, vendorspec := range getQatSpecs(cdiCache) {
 		vendorspecname := path.Base(vendorspec.GetPath())
 
-		if vendorspec.Kind != device.CDIKind {
-			klog.V(5).Infof("Spec file %s is for other kind %s, skipping...", vendorspecname, vendorspec.Kind)
-			continue
-		}
-
 		name := vfspecname + path.Ext(vendorspecname)
 		if name == vendorspecname {
 			klog.V(5).Infof("Adding rest of the devices to '%s'", name)
@@ -138,21 +133,4 @@ func appendDevices(cdiCache *cdiapi.Cache, spec *cdispecs.Spec, vfdevices device
 
 	klog.Infof("CDI %s: Kind %s, Version %v", name, spec.Kind, spec.Version)
 	return nil
-}
-
-func OverwriteDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
-	var err error
-
-	klog.V(5).Info("Add/overwrite CDI devices")
-
-	spec := &cdispecs.Spec{
-		Kind: device.CDIKind,
-	}
-
-	name, err := cdiapi.GenerateNameForSpec(spec)
-	if err != nil {
-		return fmt.Errorf("spec name not created: %v", err)
-	}
-
-	return appendDevices(cdiCache, spec, vfdevices, name)
 }
