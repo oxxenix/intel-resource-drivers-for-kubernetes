@@ -18,7 +18,6 @@ import (
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
 	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
@@ -73,11 +72,6 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 			continue
 		}
 		updateFound = updateFound || updated
-
-		if err := cdihelpers.DeleteDeviceAndWrite(d.state.CdiCache, string(claim.UID)); err != nil {
-			response[claim.UID] = fmt.Errorf("error deleting CDI device: %v", err)
-			continue
-		}
 
 		response[claim.UID] = nil
 		klog.V(3).Infof("Freed devices for claim '%v'", claim.UID)

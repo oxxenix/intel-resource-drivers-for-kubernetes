@@ -25,8 +25,12 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
-func FakeSysFsGaudiContents(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo, realDeviceFiles bool) error {
+func FakeSysFsGaudiContents(root, sysfsRoot, devfsRoot string, gaudis device.DevicesInfo, realDeviceFiles bool) error {
 	if err := sanitizeFakeSysFsDir(sysfsRoot); err != nil {
+		return err
+	}
+
+	if err := createFakeCDIGaudiBits(root); err != nil {
 		return err
 	}
 
@@ -162,6 +166,37 @@ func fakeGaudiDeviceFiles(devfsRoot, accelDevPath string, accelIdx uint64, real 
 		if err := createDevice(device, real); err != nil {
 			return fmt.Errorf("creating device: %v", err)
 		}
+	}
+
+	return nil
+}
+
+// createFakeCDIGaudiBits creates two files that can be used as CDI hook and bind-mount,
+// they fake the habana-container-hook and gaudinet.json.
+func createFakeCDIGaudiBits(targetDir string) error {
+	// Ceate blank text file for gaudinet mount.
+	gaudinetFile, err := os.OpenFile(path.Join(targetDir, "gaudinet"), os.O_CREATE|os.O_WRONLY, 0660)
+	if err != nil {
+		return fmt.Errorf("failed to create fake gaudinet: %v", err)
+	}
+	if err := gaudinetFile.Close(); err != nil {
+		return fmt.Errorf("failed to close fake hook %v: %v", gaudinetFile.Name(), err)
+	}
+
+	// Create blank executable for CDI hook.
+	hookbinPath := path.Join(targetDir, "hookbin")
+	hookbinFile, err := os.OpenFile(path.Join(hookbinPath), os.O_CREATE|os.O_WRONLY, 0660)
+	if err != nil {
+		return fmt.Errorf("failed to create fake hook %v: %v", hookbinPath, err)
+	}
+	if _, err := hookbinFile.WriteString("#!/bin/sh\necho OK\n"); err != nil {
+		return fmt.Errorf("failed to write to fake hook %v: %v", hookbinPath, err)
+	}
+	if err := hookbinFile.Close(); err != nil {
+		return fmt.Errorf("failed to close fake hook %v: %v", hookbinPath, err)
+	}
+	if err := os.Chmod(hookbinPath, 0o777); err != nil {
+		return fmt.Errorf("failed to chmod fake hook %v: %v", hookbinPath, err)
 	}
 
 	return nil

@@ -194,7 +194,7 @@ func handleGaudiDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool)
 	}
 
 	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
-	if err := gaudiCdihelpers.SyncDetectedDevicesWithRegistry(cdiCache, detectedDevices, true); err != nil {
+	if err := gaudiCdihelpers.AddDetectedDevicesToCDIRegistry(cdiCache, detectedDevices, true); err != nil {
 		fmt.Printf("unable to sync detected devices to CDI registry: %v", err)
 		return err
 	}

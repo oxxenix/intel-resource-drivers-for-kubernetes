@@ -97,6 +97,7 @@ func TestGetAccelIndex(t *testing.T) {
 			defer testhelpers.CleanupTest(t, "TestAddDeviceToAnySpec", testDirs.TestRoot)
 
 			if err := fakesysfs.FakeSysFsGaudiContents(
+				testDirs.TestRoot,
 				testDirs.SysfsRoot,
 				testDirs.DevfsRoot,
 				device.DevicesInfo{
@@ -131,7 +132,7 @@ func TestDiscoverDevices(t *testing.T) {
 			ModuleIdx:  0,
 			UID:        "0000-0f-00-0-0x1020",
 			PCIRoot:    "01",
-			UVerbsIdx:  1024,
+			UVerbsIdx:  1024, // device.UverbsMissingIdx
 		},
 	}
 
@@ -208,6 +209,7 @@ func TestDiscoverDevices(t *testing.T) {
 			defer testhelpers.CleanupTest(t, "TestDiscoverDevices", testDirs.TestRoot)
 
 			if err := fakesysfs.FakeSysFsGaudiContents(
+				testDirs.TestRoot,
 				testDirs.SysfsRoot,
 				testDirs.DevfsRoot,
 				testDevicesInfo,

@@ -42,10 +42,24 @@ type driver struct {
 	helper *kubeletplugin.Helper
 }
 
+func getGaudiFlags(someFlags any) (*GaudiFlags, error) {
+	switch v := someFlags.(type) {
+	case *GaudiFlags:
+		return v, nil
+	default:
+		return &GaudiFlags{}, fmt.Errorf("could not parse driver flags as GaudiFlags (got type: %T)", v)
+	}
+}
+
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
 	sysfsDir := helpers.GetSysfsRoot(device.SysfsDriverPath)
 	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
+
+	gaudiFlags, err := getGaudiFlags(config.DriverFlags)
+	if err != nil {
+		return nil, fmt.Errorf("getGaudiFlags: %w", err)
+	}
 
 	detectedDevices := discovery.DiscoverDevices(sysfsDir, device.DefaultNamingStyle)
 	if len(detectedDevices) == 0 {
@@ -53,7 +67,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	}
 
 	klog.V(3).Info("Creating new NodeState")
-	state, err := newNodeState(detectedDevices, config.CommonFlags.CdiRoot, preparedClaimsFilePath, config.CommonFlags.NodeName)
+	state, err := newNodeState(detectedDevices, config.CommonFlags.CdiRoot, preparedClaimsFilePath, config.CommonFlags.NodeName, gaudiFlags.GaudiHookPath, gaudiFlags.GaudinetPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
@@ -132,7 +146,8 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 			continue
 		}
 
-		if err := cdihelpers.DeleteDeviceAndWrite(d.state.CdiCache, string(claim.UID)); err != nil {
+		// Cleanup special CDI devices that hold only env variables.
+		if err := cdihelpers.DeleteBlankDevices(d.state.CdiCache, string(claim.UID)); err != nil {
 			response[claim.UID] = fmt.Errorf("error deleting CDI device: %v", err)
 			continue
 		}

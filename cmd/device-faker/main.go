@@ -173,7 +173,7 @@ func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, 
 		return fmt.Errorf("failed parsing file %v. Err: %v", templateFilePath, err)
 	}
 
-	err = fakesysfs.FakeSysFsGaudiContents(testDirs.SysfsRoot, testDirs.DevfsRoot, devices, realDevices)
+	err = fakesysfs.FakeSysFsGaudiContents(testDirs.TestRoot, testDirs.SysfsRoot, testDirs.DevfsRoot, devices, realDevices)
 	if err != nil {
 		fmt.Printf("could not setup fake filesystem in %v: %v\n", testDirs.TestRoot, err)
 		if err := os.RemoveAll(testDirs.TestRoot); err != nil {

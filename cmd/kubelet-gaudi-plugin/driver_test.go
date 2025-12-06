@@ -47,6 +47,7 @@ func TestGaudiFakeSysfs(t *testing.T) {
 	}
 
 	if err := fakesysfs.FakeSysFsGaudiContents(
+		testDirs.TestRoot,
 		testDirs.SysfsRoot,
 		testDirs.DevfsRoot,
 		device.DevicesInfo{
@@ -73,7 +74,7 @@ func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
 		Coreclient:  kubefake.NewSimpleClientset(),
-		DriverFlags: nil,
+		DriverFlags: &GaudiFlags{GaudiHookPath: path.Join(testDirs.TestRoot, "hookbin"), GaudinetPath: path.Join(testDirs.TestRoot, "gaudinet")},
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -196,7 +197,7 @@ func TestGaudiPrepareResourceClaims(t *testing.T) {
 			fakeGaudis = device.DevicesInfo{}
 		}
 
-		if err := fakesysfs.FakeSysFsGaudiContents(testDirs.SysfsRoot, testDirs.DevfsRoot, fakeGaudis, false); err != nil {
+		if err := fakesysfs.FakeSysFsGaudiContents(testDirs.TestRoot, testDirs.SysfsRoot, testDirs.DevfsRoot, fakeGaudis, false); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
 			return
 		}
@@ -312,6 +313,7 @@ func TestGaudiUnprepareResourceClaims(t *testing.T) {
 		}
 
 		if err := fakesysfs.FakeSysFsGaudiContents(
+			testDirs.TestRoot,
 			testDirs.SysfsRoot,
 			testDirs.DevfsRoot,
 			device.DevicesInfo{

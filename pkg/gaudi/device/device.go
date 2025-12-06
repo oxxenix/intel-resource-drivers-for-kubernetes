@@ -72,6 +72,10 @@ const (
 	// UverbsMissing should be unrealistically high to prevent non-existent InfiniBand devices
 	// being added to the CDI specs, otherwise container runtime will error out after not finding it.
 	UverbsMissingIdx = 1024
+
+	// From device-plugin.
+	DefaultHabanaHookPath = "/usr/local/habana/bin/habana-container-hook"
+	DefaultGaudinetPath   = "/etc/habanalabs/gaudinet.json"
 )
 
 // DeviceInfo is an internal structure type to store info about discovered device.
