@@ -43,6 +43,10 @@ const (
 
 var sysfsRoot string = ""
 
+func ClearSysfsRoot() {
+	sysfsRoot = ""
+}
+
 func getSysfsRoot() string {
 	if sysfsRoot != "" {
 		return sysfsRoot
