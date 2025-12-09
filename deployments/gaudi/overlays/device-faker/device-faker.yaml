@@ -13,12 +13,13 @@ spec:
         # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#termination-with-sidecars
         # which allows proper fake root cleanup.
         restartPolicy: Always
-        image: registry.local/intel-device-faker:latest
+        # TODO: switch to CI image when public CI is in place
+        image: registry.local/intel-device-faker:v0.5.0
         imagePullPolicy: Always
-        command: ["/device-faker", "gaudi", "-t", "/opt/templates/gaudi-template.json", "-r", "-d", "/tmp/fake-root", "-c"]
+        command: ["/device-faker", "gaudi", "-t", "/opt/templates/gaudi-template.json", "-r", "-d", "/tmp/gaudi-fake-root", "-c", "-p"]
         volumeMounts:
-        - name: fake-root
-          mountPath: /tmp/fake-root
+        - name: gaudi-fake-root
+          mountPath: /tmp/gaudi-fake-root
         securityContext:
           readOnlyRootFilesystem: false
           allowPrivilegeEscalation: false
@@ -27,28 +28,37 @@ spec:
             add:  [ "MKNOD" ]
       containers:
       - name: kubelet-plugin
-        # `-v 5` is added for more verbose logging.
-        command: ["/kubelet-gaudi-plugin", "-v", "5"]
+        command: ["/kubelet-gaudi-plugin", "-v", "5", "-n", "/tmp/gaudi-fake-root/gaudinet", "-p", "/tmp/gaudi-fake-root/hookbin"]
+        # TODO: change to :devel when public CI is in place
         image: ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gaudi-resource-driver:latest
-        imagePullPolicy: Always
+        # TODO: pull policy is needed when :devel is used instead of :latest
+        #imagePullPolicy: Always
         env:
         - name: SYSFS_ROOT
-          value: "/sysfs"
+          value: "/tmp/gaudi-fake-root/sysfs"
         - name: DEVFS_ROOT
-          value: "/tmp/fake-root/dev"
+          value: "/tmp/gaudi-fake-root/dev"
+        # Host dir for system's dynamic CDI dir. Containerd & CRI-O default value.
+        - name: CDI_ROOT
+          value: "/var/run/cdi"
         volumeMounts:
-        - name: fake-root
-          mountPath: /sysfs
+        - name: gaudi-fake-root
+          mountPath: /tmp/gaudi-fake-root/sysfs
           subPath: sysfs
-        - name: fake-root
-          mountPath: /tmp/fake-root/dev
+        - name: gaudi-fake-root
+          mountPath: /tmp/gaudi-fake-root/dev
           subPath: dev
-        - name: fake-root
-          mountPath: /etc/cdi
-          subPath: cdi
+        # Host dir for system's dynamic CDI dir. Containerd & CRI-O default value.
+        - name: dynamic-cdi
+          mountPath: /var/run/cdi
         securityContext:
           privileged: false
       volumes:
-      - name: fake-root
+      - name: gaudi-fake-root
         hostPath:
-          path: /tmp/fake-root
+          path: /tmp/gaudi-fake-root
+      # Host dir for system's dynamic CDI dir. Containerd & CRI-O default value.
+      - name: dynamic-cdi
+        hostPath:
+          path: /var/run/cdi
+
