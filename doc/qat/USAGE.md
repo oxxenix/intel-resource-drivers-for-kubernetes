@@ -1,14 +1,28 @@
 ## Requirements
 
-- Kubernetes 1.32+, with `DynamicResourceAllocation` feature-flag enabled, and
-[other cluster parameters](../../hack/clusterconfig.yaml)
+- Kubernetes v1.32+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features, see [Cluster Setup](../CLUSTER_SETUP.md)
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
-  - Containerd v1.7 or newer
+  - Containerd v1.7 or newer with CDI enabled
 
 ## Deploy resource-driver
 
-Deploy DeviceClass, Namespace and ResourceDriver
+### Helm Chart
+
+The [Intel QAT Resource Driver Helm Chart](../../charts/intel-qat-resource-driver) is published
+as a package to GitHub OCI registry, and can be installed directly with Helm.
+
+```console
+helm install \
+    --namespace "intel-qat-resource-driver" \
+    --create-namespace \
+    intel-qat-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-qat-resource-driver-chart
+```
+
+See [details](../../charts/intel-qat-resource-driver/README.md) in the chart directory.
+
+### From sources
+
 ```bash
 kubectl apply -k deployments/qat/
 ```

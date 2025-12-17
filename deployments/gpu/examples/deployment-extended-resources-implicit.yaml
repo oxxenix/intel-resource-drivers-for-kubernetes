@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dra-extended-resource-example
+  name: dra-implicit-extended-resource-example
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: dra-extended-resource-example
+      app: dra-implicit-extended-resource-example
   template:
     metadata:
       labels:
-        app: dra-extended-resource-example
+        app: dra-implicit-extended-resource-example
     spec:
       containers:
       - name: workload
@@ -18,4 +18,4 @@ spec:
         command: ["sh", "-c", "ls -la /dev/dri/ && sleep 300"]
         resources:
           limits:
-            intel.com/gpu: 1
+            deviceclass.resource.kubernetes.io/gpu.intel.com: 1

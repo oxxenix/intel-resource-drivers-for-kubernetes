@@ -15,7 +15,7 @@ spec:
       containers:
       - name: workload
         image: registry.k8s.io/e2e-test-images/busybox:1.29-2
-        command: ["sh", "-c", "ls -la /dev/dri/ && sleep 300"]
+        command: ["sh", "-c", "ls -la /dev/accel/ && sleep 300"]
         resources:
           limits:
-            intel.com/gpu: 1
+            intel.com/gaudi: 1

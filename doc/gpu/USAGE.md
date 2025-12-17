@@ -1,22 +1,9 @@
 ## Requirements
 
-- Kubernetes v1.34+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features
+- Kubernetes v1.32+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features, see [Cluster Setup](../CLUSTER_SETUP.md)
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
-  - Containerd v1.7 or newer
-
-### Enable CDI in Containerd
-
-Containerd has CDI enabled by default since version 2.0. For older versions (1.7 and above)
-CDI has to be enabled in Containerd config by enabling `enable_cdi` and `cdi_spec_dirs`.
-Example `/etc/containerd/config.toml`:
-```
-version = 2
-[plugins]
-  [plugins."io.containerd.grpc.v1.cri"]
-    enable_cdi = true
-    cdi_spec_dirs = ["/etc/cdi", "/var/run/cdi"]
-```
+  - Containerd v1.7 or newer with CDI enabled
 
 ## Deploy resource-driver
 
@@ -37,8 +24,9 @@ See [details](../../charts/intel-gpu-resource-driver/README.md) in the chart dir
 ### From sources
 
 ```bash
-kubectl apply -k deployments/gpu/
+kubectl apply -k 'https://github.com/intel/intel-resource-drivers-for-kubernetes/deployments/gpu?ref=<RELEASE_VERSION>'
 ```
+Example RELEASE_VERSION: `gpu-v0.9.0`.
 
 By default, the kubelet-plugin is deployed on _all_ nodes in the cluster, as no nodeSelector is defined.
 To restrict the deployment to GPU-enabled nodes, follow these steps:
@@ -54,7 +42,7 @@ kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/depl
 2. Deploy the DRA driver with new NFD Rules for Intel GPUs:
 
 ```bash
-kubectl apply -k deployments/gpu/overlays/nfd_labeled_nodes/
+kubectl apply -k 'https://github.com/intel/intel-resource-drivers-for-kubernetes/deployments/gpu/overlays/nfd_labeled_nodes?ref=<RELEASE_VERSION>'
 ```
 
 After NFD is installed and running, make sure the target node is labeled with:
@@ -85,6 +73,8 @@ rpl-s-gpu.intel.com-mbr6p     rpl-s   gpu.intel.com     rpl-s   30s
 ```
 
 Example contents of the ResourceSlice object:
+<details>
+
 ```bash
 $ kubectl get resourceslice/rpl-s-gpu.intel.com-mbr6p -o yaml
 apiVersion: resource.k8s.io/v1
@@ -134,10 +124,12 @@ spec:
     resourceSliceCount: 1
 ```
 
+</details>
+
 ## Deploying test pod to verify GPU resource-driver works
 
 ```bash
-$ kubectl apply -f deployments/gpu/examples/pod-inline-gpu.yaml
+$ kubectl apply -f 'https://raw.githubusercontent.com/intel/intel-resource-drivers-for-kubernetes/refs/heads/main/deployments/gpu/examples/pod-inline-gpu.yaml'
 resourceclaimtemplate.resource.k8s.io/claim1 created
 pod/test-inline-claim created
 ```
@@ -218,6 +210,30 @@ In this example:
   - it will use Resource Claim `claim1`;
   - the container named `with-resource` will be using the resources allocated to the Resource Claim
     `claim1`.
+
+### Requesting DRA-managed accelerators through extended resources
+
+Starting K8s v1.34 it is possible to request resources managed by DRA driver without creating a
+ResourceClaim, through `resources` section of workload definition. This requires
+`DRAExtendedResources` [feature gate](../CLUSTER_SETUP.md#useful-and-required-featuregates) to be
+ enabled.
+
+If this feature is enabled in the cluster, ensure that `enableDRAExtendedResources` is set in the Helm
+chart values during the installation, or that
+[respective line](../../deployments/gpu/base/device-class.yaml#L11) is uncommented in yaml when
+installing from the from sources.
+
+To check if this feature is enabled and successfully activated, check if DeviceClass has
+`Extended Resource Name`:
+```shell
+kubectl describe deviceclass/gpu.intel.com
+```
+
+See [workload example](../../deployments/gpu/examples/deployment-extended-resources.yaml).
+
+Starting K8s v1.35, it is also possible to request DRA driver-managed resource implicitly,
+based on the DRA driver name, even if the latter lacks `extendedResourceName` setting.
+See [example](../../deployments/gaudi/examples/deployment-extended-resources-implicit.yaml)
 
 ### Device Class
 
@@ -309,11 +325,22 @@ Unlike with normal GPU ResourceClaims:
 
 ## Health monitoring support
 
-Starting from v0.9.0 GPU DRA driver supports health monitoring with `-m` command-line parameter (disabled in default deployment configuration) through [xpu-smi](https://github.com/intel/xpumanager) library. When it deems GPU accelerator as unhealthy, `healthy` field for corresponding device in `ResourceSlice` is set as `false`. If `DRADeviceTaints` feature gate is enabled in the cluster, health category [DeviceTaint](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) will be added to the unhealthy device's entry in `ResourceSlice`.
+Starting from v0.9.0 GPU DRA driver supports health monitoring with `-m` command-line parameter
+(disabled in default deployment configuration) through [xpu-smi](https://github.com/intel/xpumanager)
+library. When it deems GPU accelerator as unhealthy, `healthy` field for corresponding device in
+`ResourceSlice` is set as `false`.
 
-In K8s v1.33 [DeviceTaintRule](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) (requires enabling feature gate) concept was introduced that allows scheduler to handle ResourceSlice devices similarly to how K8s Node Taints and Tolerations allow. Cluster admins can create such DeviceTaintRule to prevent workloads being scheduled and / or executed on a particular GPU.
+If `DRADeviceTaints` feature gate is enabled in the cluster, health category [DeviceTaint](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#device-taints-and-tolerations) will be added to the unhealthy device's entry in `ResourceSlice`.
+
+This feature was first introduced in K8s v1.33, it allows scheduler to handle ResourceSlice devices
+similarly to how K8s Node Taints and Tolerations allow. Cluster admins can create standalone
+DeviceTaintRule to prevent workloads being scheduled and / or executed on a particular GPU.
 
 ## Known issues
 
-- In K8s v1.34.0 - v1.34.1 the kubelet might lose GRPC connection to a DRA driver after 30 minutes of inactivity. To prevent this situation, enable `ResourceHealthStatus` feature-gate in Kubelet and api-server.
-- In K8s v1.34-0 - v1.34.1 the Device Taint Eviction Controller can evict a Pod with a DeviceTaintToleration immediately after successful scheduling. Solution is to upgrade the cluster to a newer K8s version.
+- In K8s v1.34.0 - v1.34.1 the kubelet might lose GRPC connection to a DRA driver after 30 minutes
+  of inactivity. To prevent this situation, enable `ResourceHealthStatus` feature-gate in Kubelet
+  and api-server.
+- In K8s v1.34-0 - v1.34.1 the Device Taint Eviction Controller can evict a Pod with a
+  DeviceTaintToleration immediately after successful scheduling. Solution is to upgrade the cluster
+  to a newer K8s version.

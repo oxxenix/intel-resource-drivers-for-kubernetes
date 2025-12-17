@@ -1,6 +1,6 @@
 # Intel Gaudi resource driver for Kubernetes
 
-CAUTION: This is an beta / non-production software, do not use on production clusters.
+CAUTION: This is a beta / non-production software, do not use on production clusters.
 
 ## About resource driver
 

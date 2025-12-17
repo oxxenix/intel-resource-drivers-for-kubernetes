@@ -24,7 +24,9 @@ sudo -E kubeadm init --config hack/clusterconfig.yaml
 | DRAPrioritizedList | apiserver, scheduler. controller-manager | [KEP-4816 link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling/4816-dra-prioritized-list/README.md#feature-enablement-and-rollback) | Allows requesting alternatives for device request. |
 
 
-## Enable CDI in Containerd
+## Enable CDI in older versions of Containerd 1.7.X
+
+This is only needed for versions 1.7.X . Starting v2.0 it's enabled by default.
 
 Containerd config file should have `enable_cdi` and `cdi_spec_dirs`. Example `/etc/containerd/config.toml`:
 ```
@@ -37,7 +39,7 @@ version = 2
 
 ## Using minikube
 
-To create a minikube cluster with DRA, use the command (change the K8s version in the last parameter if needed):
+To create a minikube cluster with Device Taints feature, use the command (change the K8s version in the last parameter if needed):
 ```shell
 minikube start \
 --extra-config=apiserver.feature-gates=DRADeviceTaints=true \
@@ -66,4 +68,19 @@ Then save it, exit editor, and restart the containerd that runs inside the minik
 systemctl restart containerd
 ```
 
-At last, exit from the minikube container.
+Finally, exit from the minikube container
+```
+exit
+```
+
+## Using kind
+
+### Prerequisites
+
+- kind v0.30+, that is based on Kubernetes v1.34+
+
+## Creating cluster
+
+```shell
+kind create cluster --config ./hack/kind-config.yaml
+```

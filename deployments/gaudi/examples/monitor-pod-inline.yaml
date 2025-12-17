@@ -21,7 +21,7 @@ spec:
   containers:
   - name: monitor
     image: registry.k8s.io/e2e-test-images/busybox:1.29-2
-    command: ["sh", "-c", "ls -la /dev/dri/ && sleep 60"]
+    command: ["sh", "-c", "ls -la /dev/accel/ && sleep 60"]
     resources:
       claims:
       - name: resource
