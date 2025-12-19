@@ -3,12 +3,17 @@ nameOverride: ""
 fullnameOverride: ""
 selectorLabelsOverride: {}
 
+# To enable DRA resources allocation as extended resources. K8s v1.33-v1.36 requires FeatureGate.
+# See https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5004-dra-extended-resource .
+enableDRAExtendedResources: false
+extendedResourceName: intel.com/gpu
+
 imagePullSecrets: []
 image:
   repository: ghcr.io/intel/intel-resource-drivers-for-kubernetes
   name: intel-gpu-resource-driver
   pullPolicy: IfNotPresent
-  tag: "v0.9.0"
+  tag: "v0.9.1"
 
 serviceAccount:
   create: true
@@ -16,10 +21,20 @@ serviceAccount:
   name: ""
   automount: true
 
+openshift:
+  enabled: false
+  sccName: intel-gpu-resource-driver
+
 kubeletPlugin:
   podAnnotations: {}
-  nodeSelector: {} # ignored when .Values.nodeFeatureRules.enabled or .Values.nfd.enabled
+  nodeSelector: {}
+    # Label used when nfd.enabled is true.
+    # Changes to this are ignored when .Values.nodeFeatureRules.enabled or .Values.nfd.enabled .
+    #intel.feature.node.kubernetes.io/gpu: "true"
   tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
       effect: NoSchedule

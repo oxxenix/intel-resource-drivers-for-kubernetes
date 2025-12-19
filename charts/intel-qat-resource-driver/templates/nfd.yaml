@@ -1,3 +1,4 @@
+{{- if or .Values.nodeFeatureRules.enabled .Values.nfd.enabled }}
 apiVersion: nfd.k8s-sigs.io/v1alpha1
 kind: NodeFeatureRule
 metadata:
@@ -25,3 +26,4 @@ spec:
             - feature: kernel.enabledmodule
               matchExpressions:
                 vfio-pci: {op: Exists}
+{{- end }}

@@ -51,4 +51,17 @@ You may also run `helm show values` on this chart's dependencies for additional 
 | image.repository | string | `intel` |
 | image.name | string | `"intel-gpu-resource-driver"` |
 | image.pullPolicy | string | `"IfNotPresent"` |
-| image.tag | string | `"v0.9.0"` |
+| image.tag | string | `"v0.9.1"` |
+
+## Deploying to RedHat OpenShift Container Platform
+
+```console
+helm install \
+    --set openshift.enabled=true \
+    --namespace "intel-gpu-resource-driver" \
+    --create-namespace \
+    intel-gpu-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver-chart
+```
+
+> [!NOTE]
+> Chart contains SecurityContextConstraints, which requires cluster admin privileges. Ensure the chart is installed by the cluster admin.
