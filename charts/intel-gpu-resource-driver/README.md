@@ -51,7 +51,7 @@ You may also run `helm show values` on this chart's dependencies for additional 
 | image.repository | string | `intel` |
 | image.name | string | `"intel-gpu-resource-driver"` |
 | image.pullPolicy | string | `"IfNotPresent"` |
-| image.tag | string | `"v0.9.0"` |
+| image.tag | string | `"v0.9.1"` |
 
 ## Deploying to RedHat OpenShift Container Platform
 
