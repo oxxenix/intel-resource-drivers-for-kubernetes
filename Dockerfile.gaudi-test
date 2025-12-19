@@ -14,7 +14,9 @@
 FROM golang:1.24.2@sha256:b51b7beeabe2e2d8438ba4295c59d584049873a480ba0e7b56d80db74b3e3a3a AS go
 
 FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab AS ubuntu
-COPY --from=go --chown=1000:1000 /usr/local/go /home/ubuntu/go
+ARG UID=1000
+ARG GID=1000
+COPY --from=go --chown=${UID}:${GID} /usr/local/go /home/ubuntu/go
 
 # add xpu-smi shared library for GPU tests and other dependencies
 RUN \
@@ -33,9 +35,7 @@ RUN \
 mkdir /github && \
 chmod 777 /github && \
 mkdir /home/ubuntu/src && \
-chown 1000:1000 /home/ubuntu/src && \
-git config --global --add safe.directory /home/ubuntu/src
-
+chown -R ${UID}:${GID} /home/ubuntu
 
 ENV GOCACHE=/home/ubuntu/.cache/go-build
 ENV GOMODCACHE=/home/ubuntu/.cache/go-mod

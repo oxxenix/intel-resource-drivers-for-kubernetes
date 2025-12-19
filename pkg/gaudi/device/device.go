@@ -42,12 +42,13 @@ var (
 )
 
 const (
-	DevfsAccelPath = "accel"
+	DevfsAccelPath      = "accel"
+	DevfsInfiniBandPath = "infiniband"
 
 	// driver.sysfsDriverDir and driver.sysfsAccelDir are sysfsDriverPath and sysfsAccelPath
 	// respectively prefixed with $SYSFS_ROOT.
-	SysfsDriverPath = "bus/pci/drivers/habanalabs"
-	SysfsAccelPath  = "devices/virtual/accel/"
+	SysfsDriverPath     = "bus/pci/drivers/habanalabs"
+	SysfsAccelClassPath = "class/accel/"
 
 	CDIVendor        = "intel.com"
 	CDIClass         = "gaudi"
@@ -57,8 +58,24 @@ const (
 
 	PreparedClaimsFileName = "preparedClaims.json"
 
-	DefaultNamingStyle       = "machine"
-	VisibleDevicesEnvVarName = "HABANA_VISIBLE_DEVICES"
+	DefaultNamingStyle         = "machine"
+	VisibleDevicesEnvVarName   = "HABANA_VISIBLE_DEVICES"
+	VisibleModulesEnvVarName   = "HABANA_VISIBLE_MODULES"
+	HLVisibleDevicesEnvVarName = "HL_VISIBLE_DEVICES"
+
+	AccelDevicePattern = "accel[0-9]*"
+
+	InfinibandVerbsDirName = "infiniband_verbs"
+	InfinibandVerbsPattern = "uverbs[0-9]*"
+	// uverbs indices start from 0. Uninitialized uint64 is also 0. Therefore when no InfiniBand
+	// is detected - device.UVerbsIdx should indicate in some way the absence of the NIC.
+	// UverbsMissing should be unrealistically high to prevent non-existent InfiniBand devices
+	// being added to the CDI specs, otherwise container runtime will error out after not finding it.
+	UverbsMissingIdx = 1024
+
+	// From device-plugin.
+	DefaultHabanaHookPath = "/usr/local/habana/bin/habana-container-hook"
+	DefaultGaudinetPath   = "/etc/habanalabs/gaudinet.json"
 )
 
 // DeviceInfo is an internal structure type to store info about discovered device.
@@ -72,6 +89,7 @@ type DeviceInfo struct {
 	DeviceIdx  uint64 `json:"deviceidx"`  // accel device number (e.g. 0 for /dev/accel/accel0)
 	ModuleIdx  uint64 `json:"moduleidx"`  // OAM slot number, needed for Habana Runtime to set networking
 	PCIRoot    string `json:"pciroot"`    // PCI Root complex ID
+	UVerbsIdx  uint64 `json:"uverbsidx"`  // InfiniBand device uverbs ID
 }
 
 func (g DeviceInfo) CDIName() string {
@@ -101,6 +119,11 @@ func (g *DevicesInfo) DeepCopy() DevicesInfo {
 	}
 	return devicesInfoCopy
 }
+
 func GetAccelDevfsPath() string {
 	return filepath.Join(helpers.GetDevRoot(helpers.DevfsEnvVarName, DevfsAccelPath), DevfsAccelPath)
+}
+
+func GetInfinibandDevfsPath() string {
+	return filepath.Join(helpers.GetDevRoot(helpers.DevfsEnvVarName, DevfsInfiniBandPath), DevfsInfiniBandPath)
 }

@@ -20,16 +20,16 @@ kind: Deployment
 metadata:
   name: gaudi-test
   labels:
-    app: inline-gpu-deployment
+    app: inline-gaudi-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: inline-gpu-deployment
+      app: inline-gaudi-deployment
   template:
     metadata:
       labels:
-        app: inline-gpu-deployment
+        app: inline-gaudi-deployment
     spec:
       containers:
       - name: with-resource

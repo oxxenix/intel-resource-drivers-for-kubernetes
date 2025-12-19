@@ -47,10 +47,11 @@ func TestGaudiFakeSysfs(t *testing.T) {
 	}
 
 	if err := fakesysfs.FakeSysFsGaudiContents(
+		testDirs.TestRoot,
 		testDirs.SysfsRoot,
 		testDirs.DevfsRoot,
 		device.DevicesInfo{
-			"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, UID: "0000-0f-00-0-0x1020"},
+			"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, UID: "0000-0f-00-0-0x1020", PCIRoot: "01"},
 		},
 		false,
 	); err != nil {
@@ -73,7 +74,7 @@ func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
 		Coreclient:  kubefake.NewSimpleClientset(),
-		DriverFlags: nil,
+		DriverFlags: &GaudiFlags{GaudiHookPath: path.Join(testDirs.TestRoot, "hookbin"), GaudinetPath: path.Join(testDirs.TestRoot, "gaudinet")},
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -187,16 +188,16 @@ func TestGaudiPrepareResourceClaims(t *testing.T) {
 		}
 
 		fakeGaudis := device.DevicesInfo{
-			"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020"},
-			"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},
-			"0000-00-04-0-0x1020": {Model: "0x1020", DeviceIdx: 2, PCIAddress: "0000:00:04.0", UID: "0000-00-04-0-0x1020"},
+			"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020", PCIRoot: "01"},
+			"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020", PCIRoot: "01"},
+			"0000-00-04-0-0x1020": {Model: "0x1020", DeviceIdx: 2, PCIAddress: "0000:00:04.0", UID: "0000-00-04-0-0x1020", PCIRoot: "02"},
 		}
 
 		if testcase.noDetectedDevices {
 			fakeGaudis = device.DevicesInfo{}
 		}
 
-		if err := fakesysfs.FakeSysFsGaudiContents(testDirs.SysfsRoot, testDirs.DevfsRoot, fakeGaudis, false); err != nil {
+		if err := fakesysfs.FakeSysFsGaudiContents(testDirs.TestRoot, testDirs.SysfsRoot, testDirs.DevfsRoot, fakeGaudis, false); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
 			return
 		}
@@ -312,11 +313,12 @@ func TestGaudiUnprepareResourceClaims(t *testing.T) {
 		}
 
 		if err := fakesysfs.FakeSysFsGaudiContents(
+			testDirs.TestRoot,
 			testDirs.SysfsRoot,
 			testDirs.DevfsRoot,
 			device.DevicesInfo{
-				"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020"},
-				"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020"},
+				"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020", PCIRoot: "01"},
+				"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020", PCIRoot: "01"},
 			},
 			false,
 		); err != nil {

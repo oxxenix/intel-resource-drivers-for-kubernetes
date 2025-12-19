@@ -17,8 +17,10 @@
 package discovery
 
 import (
+	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -28,16 +30,10 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type gaudiIndexesType struct {
-	accelIdx  uint64 // /dev/accel/accelX
-	moduleIdx uint64 // OAM slot number for networking logic
-}
-
 // Detect devices from sysfs.
 func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo {
 
 	sysfsDriverDir := path.Join(sysfsDir, device.SysfsDriverPath)
-	sysfsAccelDir := path.Join(sysfsDir, device.SysfsAccelPath)
 
 	devices := make(map[string]*device.DeviceInfo)
 
@@ -47,15 +43,15 @@ func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo
 			klog.V(5).Infof("No Intel Gaudi devices found on this host. %v does not exist", sysfsDriverDir)
 			return devices
 		}
-		klog.Errorf("could not read sysfs directory %v: %v", sysfsAccelDir, err)
+		klog.Errorf("could not read sysfs directory %v: %v", driverDirFiles, err)
 		return devices
 	}
 
-	return scanDevicesFromDriverDirFiles(driverDirFiles, sysfsDriverDir, getAccelIndexes(sysfsAccelDir), namingStyle)
+	return scanDevicesFromDriverDirFiles(driverDirFiles, sysfsDriverDir, namingStyle)
 
 }
 
-func scanDevicesFromDriverDirFiles(driverDirFiles []os.DirEntry, sysfsDriverDir string, deviceIndexes map[string]gaudiIndexesType, namingStyle string) map[string]*device.DeviceInfo {
+func scanDevicesFromDriverDirFiles(driverDirFiles []os.DirEntry, sysfsDriverDir string, namingStyle string) map[string]*device.DeviceInfo {
 	devices := map[string]*device.DeviceInfo{}
 	for _, pciAddress := range driverDirFiles {
 		devicePCIAddress := pciAddress.Name()
@@ -65,34 +61,48 @@ func scanDevicesFromDriverDirFiles(driverDirFiles []os.DirEntry, sysfsDriverDir 
 		}
 		klog.V(5).Infof("Found Gaudi PCI device: %s", devicePCIAddress)
 
-		deviceIdFile := path.Join(sysfsDriverDir, devicePCIAddress, "device")
+		driverDeviceDir := path.Join(sysfsDriverDir, devicePCIAddress)
+		// Read PCI device ID.
+		deviceIdFile := path.Join(driverDeviceDir, "device")
 		deviceIdBytes, err := os.ReadFile(deviceIdFile)
 		if err != nil {
-			klog.Errorf("Failed reading device file (%s): %+v", deviceIdFile, err)
+			klog.Errorf("failed detecting device %v PCI ID: %+v", devicePCIAddress, err)
 			continue
 		}
 		deviceId := strings.TrimSpace(string(deviceIdBytes))
+
+		deviceIdx, err := getAccelIndex(path.Join(driverDeviceDir, "accel"))
+		if err != nil {
+			klog.Errorf("failed detecting device %v accel index: %v", devicePCIAddress, err)
+			continue
+		}
+
+		moduleIdx, err := getModuleId(driverDeviceDir)
+		if err != nil {
+			klog.Errorf("failed detecting device %v module index: %v", devicePCIAddress, err)
+			continue
+		}
+
+		uverbsIdx, err := getUverbsId(driverDeviceDir)
+		if err != nil {
+			klog.Warningf("could not detect device %v InfiniBand index: %v", devicePCIAddress, err)
+			uverbsIdx = device.UverbsMissingIdx
+		}
+
 		uid := helpers.DeviceUIDFromPCIinfo(devicePCIAddress, deviceId)
 		klog.V(5).Infof("New gaudi UID: %v", uid)
 		newDeviceInfo := &device.DeviceInfo{
 			UID:        uid,
 			PCIAddress: devicePCIAddress,
 			Model:      deviceId,
-			DeviceIdx:  0,
+			DeviceIdx:  deviceIdx,
+			ModuleIdx:  moduleIdx,
+			PCIRoot:    helpers.DeterminePCIRoot(driverDeviceDir),
+			UVerbsIdx:  uverbsIdx,
 		}
+		// Set user-friendly ModelName field.
 		newDeviceInfo.SetModelName()
 
-		deviceIdx, found := deviceIndexes[devicePCIAddress]
-		if !found {
-			klog.V(5).Infof("Could not find device %v Accel index", devicePCIAddress)
-			continue
-		}
-
-		newDeviceInfo.DeviceIdx = deviceIdx.accelIdx
-		newDeviceInfo.ModuleIdx = deviceIdx.moduleIdx
-
-		link := path.Join(sysfsDriverDir, devicePCIAddress)
-		newDeviceInfo.PCIRoot = helpers.DeterminePCIRoot(link)
 		devices[determineDeviceName(newDeviceInfo, namingStyle)] = newDeviceInfo
 	}
 
@@ -107,57 +117,50 @@ func determineDeviceName(info *device.DeviceInfo, namingStyle string) string {
 	return info.UID
 }
 
-func getAccelIndexes(sysfsAccelDir string) map[string]gaudiIndexesType {
-	devices := map[string]gaudiIndexesType{}
-	accelDirFiles, err := os.ReadDir(sysfsAccelDir)
+func getAccelIndex(accelDir string) (uint64, error) {
+	matches, _ := filepath.Glob(path.Join(accelDir, device.AccelDevicePattern))
+	if len(matches) != 1 {
+		return 0, fmt.Errorf("could not find matching accel device file")
+	}
+
+	accelFileName := filepath.Base(matches[0])
+	deviceIdx, err := strconv.ParseUint(accelFileName[5:], 10, 64)
 	if err != nil {
-		if os.IsNotExist(err) {
-			klog.V(5).Infof("No Accel devices found on this host. %v does not exist", sysfsAccelDir)
-			return devices
-		}
-		klog.Errorf("could not read sysfs directory %v: %v", sysfsAccelDir, err)
-		return devices
+		return 0, fmt.Errorf("failed to convert device %v accel index to a number: %v", accelFileName, err)
 	}
 
-	for _, accelFile := range accelDirFiles {
-		accelFileName := accelFile.Name()
-		if device.AccelRegexp.MatchString(accelFileName) {
-			indexes := gaudiIndexesType{}
+	return deviceIdx, nil
+}
 
-			// accelX
-			deviceIdx, err := strconv.ParseUint(accelFileName[5:], 10, 64)
-			if err != nil {
-				klog.V(5).Infof("failed to parse index of Accel device '%v', skipping", accelFileName)
-				continue
-			}
-			indexes.accelIdx = deviceIdx
-
-			// Module index is an OAM slot number.
-			moduleIdFile := path.Join(sysfsAccelDir, accelFileName, "device/module_id")
-			moduleIdBytes, err := os.ReadFile(moduleIdFile)
-			if err != nil {
-				klog.Errorf("failed reading device module_id file (%s): %+v", moduleIdFile, err)
-				continue
-			}
-
-			moduleIdx, err := strconv.ParseUint(strings.TrimSpace(string(moduleIdBytes)), 10, 64)
-			if err != nil {
-				klog.V(5).Infof("failed to parse module index of Accel device '%v', skipping", accelFileName)
-				continue
-			}
-			indexes.moduleIdx = moduleIdx
-
-			// read PCI address
-			pciAddrFilePath := path.Join(sysfsAccelDir, accelFileName, "device/pci_addr")
-			pciAddrBytes, err := os.ReadFile(pciAddrFilePath)
-			if err != nil {
-				klog.Errorf("failed reading device PCI address file (%s): %+v", pciAddrFilePath, err)
-				continue
-			}
-			pciAddr := strings.TrimSpace(string(pciAddrBytes))
-			devices[pciAddr] = indexes
-		}
+func getModuleId(driverDeviceDir string) (uint64, error) {
+	// Module index is an OAM slot number.
+	moduleIdFile := path.Join(driverDeviceDir, "module_id")
+	moduleIdBytes, err := os.ReadFile(moduleIdFile)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read device module_id file %s: %+v", moduleIdFile, err)
 	}
 
-	return devices
+	moduleIdx, err := strconv.ParseUint(strings.TrimSpace(string(moduleIdBytes)), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert device module_id %v (%v) to a number: %v", moduleIdFile, moduleIdBytes, err)
+	}
+
+	return moduleIdx, nil
+}
+
+func getUverbsId(driverDeviceDir string) (uint64, error) {
+	targetPath := path.Join(driverDeviceDir, device.InfinibandVerbsDirName, device.InfinibandVerbsPattern)
+	matches, _ := filepath.Glob(targetPath)
+	if len(matches) != 1 {
+		return 0, fmt.Errorf("could not find matching InfiniBand device file in %s. Found: %d", targetPath, len(matches))
+	}
+
+	uverbsFileName := filepath.Base(matches[0])
+	uverbsIdx, err := strconv.ParseUint(uverbsFileName[6:], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert InfiniBand device %v uverbs index to a number: %v", uverbsFileName, err)
+	}
+
+	klog.V(5).Infof("found InfiniBand link %v", uverbsIdx)
+	return uverbsIdx, nil
 }

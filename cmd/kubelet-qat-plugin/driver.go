@@ -6,205 +6,98 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
+	"path"
 	"sync"
 
 	resourceapi "k8s.io/api/resource/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
-	"k8s.io/dynamic-resource-allocation/resourceslice"
 	"k8s.io/klog/v2"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/cdi"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
-)
-
-const (
-	driverName                = "qat.intel.com"
-	pluginRegistrationDirPath = "/var/lib/kubelet/plugins_registry/"
-	kubeletPluginDataDirPath  = "/var/lib/kubelet/plugins/"
-	stateFileName             = kubeletPluginDataDirPath + ".state"
+	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
 type driver struct {
 	sync.Mutex
-	kubeclient KubeClient
-	nodename   string
-	cdi        *cdi.CDI
-	devices    device.QATDevices
-	helper     *kubeletplugin.Helper
-	statefile  string
+	client coreclientset.Interface
+	state  nodeState
+	helper *kubeletplugin.Helper
 }
 
 func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceapi.ResourceClaim) (map[types.UID]kubeletplugin.PrepareResult, error) {
+	klog.V(5).Infof("NodePrepareResource is called: number of claims: %d", len(claims))
 
 	response := map[types.UID]kubeletplugin.PrepareResult{}
 
 	for _, claim := range claims {
 		klog.V(5).Infof("NodePrepareResources: claim %s", claim.UID)
-		response[claim.UID] = d.allocateResource(ctx, claim)
+		response[claim.UID] = d.prepareResourceClaim(ctx, claim)
 	}
 
 	return response, nil
 }
 
-func (d *driver) allocateResource(ctx context.Context, claim *resourceapi.ResourceClaim) kubeletplugin.PrepareResult {
-	response := kubeletplugin.PrepareResult{}
-	deviceConfigurationChanged := false
-
-	d.Lock()
-	defer d.Unlock()
-
-	// control device
-	controldevicenode, _ := device.GetControlNode()
-	controldevicename := cdi.CDIKind + "=" + controldevicenode.UID()
-
-	var allocatedvfs []*device.VFDevice
-
-	for _, deviceallocationresult := range claim.Status.Allocation.Devices.Results {
-		var err error
-		var vfDevice *device.VFDevice
-
-		if deviceallocationresult.Driver != driverName || deviceallocationresult.Pool != d.nodename {
-			klog.V(5).Infof("Driver/pool '%s/%s' not handled by driver (%s/%s)",
-				deviceallocationresult.Driver, deviceallocationresult.Pool,
-				driverName, d.nodename)
-
-			continue
-		}
-
-		requestedDeviceUID := deviceallocationresult.Device
-
-		klog.V(5).Infof("Requested device UID '%s'", requestedDeviceUID)
-
-		// allocate specified QAT VF device which can have any service configured
-		vfDevice, deviceConfigurationChanged, err = d.devices.Allocate(requestedDeviceUID, device.Unset, string(claim.UID))
-		if err != nil {
-
-			klog.Errorf("Error allocating device %s for %s: %v", requestedDeviceUID, claim.GetUID(), err)
-
-			for _, vf := range allocatedvfs {
-				_, _ = d.devices.Free(vf.UID(), string(claim.UID))
-			}
-			return kubeletplugin.PrepareResult{Err: err}
-		}
-		allocatedvfs = append(allocatedvfs, vfDevice)
-
-		cdidevicename := cdi.CDIKind + "=" + vfDevice.UID()
-		klog.V(5).Infof("Allocated CDI devices '%s' and '%s' for claim '%s'", cdidevicename, controldevicename, claim.GetUID())
-
-		// add device
-		response.Devices = append(response.Devices, kubeletplugin.Device{
-			Requests:     []string{deviceallocationresult.Request},
-			PoolName:     deviceallocationresult.Pool,
-			DeviceName:   deviceallocationresult.Device,
-			CDIDeviceIDs: []string{cdidevicename, controldevicename},
-		})
+func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.ResourceClaim) kubeletplugin.PrepareResult {
+	klog.V(5).Infof("prepareResourceClaim is called for claim %v", claim.UID)
+	if claimPreparation, found := d.state.Prepared[string(claim.UID)]; found {
+		klog.V(3).Infof("Claim %v was already prepared, nothing to do", claim.UID)
+		return claimPreparation
 	}
 
-	// FIXME: deallocate devices if state couldn't be saved for some reason ?
-	if err := d.devices.SaveState(d.statefile); err != nil {
-		return kubeletplugin.PrepareResult{Err: err}
-	}
-
-	// FIXME: deallocate devices if couldn't publish resources ?
-	if deviceConfigurationChanged {
-		if err := d.UpdateDeviceResources(ctx); err != nil {
-			return kubeletplugin.PrepareResult{Err: fmt.Errorf("error publishing resources: %v", err)}
+	if err := d.state.Prepare(ctx, claim); err != nil {
+		return kubeletplugin.PrepareResult{
+			Err: fmt.Errorf("error preparing devices for claim %v: %v", claim.UID, err),
 		}
 	}
 
-	return response
+	return d.state.Prepared[string(claim.UID)]
 }
 
 func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletplugin.NamespacedObject) (map[types.UID]error, error) {
-
+	klog.V(5).Infof("UnprepareResourceClaims is called: number of claims: %d", len(claims))
 	response := map[types.UID]error{}
 
+	var updateFound bool
 	for _, claim := range claims {
-		klog.V(5).Infof("NodeUnprepareResources: claim %s", claim.UID)
+		var updated bool
+		var err error
+		if updated, err = d.state.Unprepare(ctx, claim); err != nil {
+			response[claim.UID] = fmt.Errorf("error freeing devices: %v", err)
+			continue
+		}
+		updateFound = updateFound || updated
 
-		response[claim.UID] = d.freeDevice(ctx, claim)
+		response[claim.UID] = nil
+		klog.V(3).Infof("Freed devices for claim '%v'", claim.UID)
+	}
+
+	if updateFound {
+		if err := d.PublishResourceSlice(ctx); err != nil {
+			klog.Errorf("could not publish updated resource slice: %v", err)
+		}
 	}
 
 	return response, nil
 }
 
-func (d *driver) freeDevice(ctx context.Context, claimDetails kubeletplugin.NamespacedObject) error {
-	savestate := false
-
-	claim, err := d.kubeclient.ResourceV1beta1().ResourceClaims(claimDetails.Namespace).Get(ctx, claimDetails.Name, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to find ResourceClaim %s in namespace %s", claimDetails.Name, claimDetails.Namespace)
-	}
-
-	if claim.Status.Allocation == nil {
-		return fmt.Errorf("ResourceClaim %s is not allocated", claimDetails.Name)
-	}
-
-	d.Lock()
-	defer d.Unlock()
-
-	for _, deviceallocationresult := range claim.Status.Allocation.Devices.Results {
-
-		requestedDeviceUID := deviceallocationresult.Device
-
-		if updated, err := d.devices.Free(requestedDeviceUID, string(claim.UID)); err != nil {
-			klog.Warningf("Could not free device %s claim '%s': %v", requestedDeviceUID, claim.UID, err)
-		} else {
-			// FIXME: why savestate only once below, but publish resources is inside the loop?
-			savestate = true
-			klog.V(5).Infof("Claim with uid '%s' freed", claim.GetUID())
-			if updated {
-				if err := d.UpdateDeviceResources(ctx); err != nil {
-					return fmt.Errorf("error publishing resources: %v", err)
-				}
-			}
-		}
-	}
-
-	if savestate {
-		return d.devices.SaveState(d.statefile)
+func (d *driver) PublishResourceSlice(ctx context.Context) error {
+	resources := d.state.GetResources()
+	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Pools[d.state.NodeName].Slices[0].Devices))
+	if err := d.helper.PublishResources(ctx, resources); err != nil {
+		return fmt.Errorf("error publishing resources: %v", err)
 	}
 	return nil
 }
 
-func (d *driver) UpdateDeviceResources(ctx context.Context) error {
-	resources := resourceslice.DriverResources{
-		Pools: map[string]resourceslice.Pool{
-			d.nodename: {
-				Slices: []resourceslice.Slice{{
-					Devices: *deviceResources(device.GetResourceDevices(d.devices)),
-				}}}},
-	}
-
-	return d.helper.PublishResources(ctx, resources)
-}
-
-func (d *driver) HandleError(ctx context.Context, err error, message string) {
-	// TODO: FIXME: error is ignored ATM, handle it properly.
-	klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error")
-}
-
-func newDriver(ctx context.Context) (*driver, error) {
-	var (
-		clientset  ClientSet
-		err        error
-		kubeclient KubeClient
-	)
-
-	nodename := os.Getenv("NODE_NAME")
-
-	if kubeclient, err = clientset.NewKubeClient(); err != nil {
-		return nil, fmt.Errorf("could not create kube client: %v", err)
-	}
-
-	cdi, err := cdi.New(cdi.CDIRoot)
-	if err != nil {
-		return nil, err
-	}
+func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
+	driverVersion.PrintDriverVersion(device.DriverName)
+	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
 
 	pfdevices, err := device.New()
 	if err != nil {
@@ -216,28 +109,74 @@ func newDriver(ctx context.Context) (*driver, error) {
 			return nil, fmt.Errorf("cannot enable PF device '%s': %v", pf.Device, err)
 		}
 	}
-
-	if err := getDefaultConfiguration(nodename, pfdevices); err != nil {
+	if err := getDefaultConfiguration(config.CommonFlags.NodeName, pfdevices); err != nil {
 		klog.Warningf("Cannot apply default configuration: %vn", err)
 	}
 
-	detectedcdidevices := device.GetCDIDevices(pfdevices)
+	detectedVFDevices := device.GetCDIDevices(pfdevices)
 
-	if err := cdi.SyncDevices(detectedcdidevices); err != nil {
-		return nil, fmt.Errorf("cannot sync CDI devices: %v", err)
+	state, err := newNodeState(detectedVFDevices, config.CommonFlags.CdiRoot, preparedClaimsFilePath, config.CommonFlags.NodeName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
 
-	d := &driver{
-		kubeclient: kubeclient,
-		nodename:   nodename,
-		cdi:        cdi,
-		devices:    pfdevices,
-		statefile:  stateFileName,
+	driver := &driver{
+		state:  *state,
+		client: config.Coreclient,
 	}
 
-	if err := d.devices.ReadStateOrCreateEmpty(d.statefile); err != nil {
-		return nil, fmt.Errorf("could not set up save state file '%s': %v", d.statefile, err)
+	klog.Infof(`Starting DRA resource-driver kubelet-plugin
+RegistrarDirectoryPath: %v
+PluginDataDirectoryPath: %v`,
+		config.CommonFlags.KubeletPluginsRegistryDir,
+		config.CommonFlags.KubeletPluginDir)
+
+	helper, err := kubeletplugin.Start(
+		ctx,
+		driver,
+		kubeletplugin.KubeClient(config.Coreclient),
+		kubeletplugin.NodeName(config.CommonFlags.NodeName),
+		kubeletplugin.DriverName(device.DriverName),
+		kubeletplugin.RegistrarDirectoryPath(config.CommonFlags.KubeletPluginsRegistryDir),
+		kubeletplugin.PluginDataDirectoryPath(config.CommonFlags.KubeletPluginDir),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start kubelet-plugin: %v", err)
 	}
 
-	return d, nil
+	driver.helper = helper
+
+	if err := driver.PublishResourceSlice(ctx); err != nil {
+		return nil, fmt.Errorf("could not publish ResourceSlice: %v", err)
+	}
+
+	klog.V(3).Info("Finished creating new driver")
+	return driver, nil
+}
+
+func (d *driver) Shutdown(ctx context.Context) error {
+	klog.V(5).Info("Shutting down driver")
+
+	d.helper.Stop()
+
+	return nil
+}
+
+// HandleError is called by Kubelet when an error occures asyncronously, and
+// needs to be communicated to the DRA driver.
+//
+// This is a mandatory method because drivers should check for errors
+// which won't get resolved by retrying and then fail or change the
+// slices that they are trying to publish:
+// - dropped fields (see [resourceslice.DroppedFieldsError])
+// - validation errors (see [apierrors.IsInvalid]).
+func (d *driver) HandleError(ctx context.Context, err error, message string) {
+	if errors.Is(err, kubeletplugin.ErrRecoverable) {
+		// TODO: FIXME: error is ignored ATM, handle it properly.
+		klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error.")
+	} else {
+		klog.FromContext(ctx).Error(err, "Unrecoverable error.")
+	}
+
+	runtime.HandleErrorWithContext(ctx, err, message)
 }

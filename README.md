@@ -1,6 +1,6 @@
 # Intel resource drivers for Kubernetes
 
-CAUTION: This is an beta / non-production software, do not use on production clusters.
+CAUTION: This is a beta / non-production software, do not use on production clusters.
 
 ## This repository containes following resource drivers:
 

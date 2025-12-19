@@ -8,7 +8,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-     app: intel-gaudi-resource-driver-kubelet-plugin
+      app: intel-gaudi-resource-driver-kubelet-plugin
   template:
     metadata:
       labels:
@@ -19,7 +19,7 @@ spec:
       - name: kubelet-plugin
         image: {{ include "intel-gaudi-resource-driver.fullimage" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["/kubelet-gaudi-plugin", "-m"]
+        command: ["/kubelet-gaudi-plugin"]
         env:
         - name: NODE_NAME
           valueFrom:

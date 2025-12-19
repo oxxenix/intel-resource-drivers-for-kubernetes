@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo
+  name: dra-extended-resource-example
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: demo
+      app: dra-extended-resource-example
   template:
     metadata:
       labels:
-        app: demo
+        app: dra-extended-resource-example
     spec:
       containers:
-      - name: demo
+      - name: workload
         image: registry.k8s.io/e2e-test-images/busybox:1.29-2
         command: ["sh", "-c", "ls -la /dev/dri/ && sleep 300"]
         resources:

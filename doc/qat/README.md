@@ -1,6 +1,6 @@
 # Intel® QAT resource driver for Kubernetes
 
-CAUTION: This is an beta / non-production software, do not use on production clusters.
+CAUTION: This is a beta / non-production software, do not use on production clusters.
 
 ## About resource driver
 
@@ -8,7 +8,8 @@ With structured parameters (K8s v1.31+), the DRA driver publishes ResourceSlice,
 the resources and resource driver's kubelet-plugin ensures that the allocated devices are prepared
 and available for Pods.
 
-DRA API graduated to GA with v1 API in K8s v1.34. Latest DRA drivers support only K8s v1.34+.
+DRA API graduated to GA with v1 API in K8s v1.34, backwards compatibility may vary
+depending on features enabled.
 
 ## Host OS requirements
 
@@ -33,7 +34,7 @@ Supported Kubernetes versions are listed below:
 | v0.1.0            | Kubernetes v1.31                | unsupported | Structured Parameters          |
 | v0.2.0            | Kubernetes v1.32                | unsupported | Structured Parameters          |
 | v0.3.0            | Kubernetes v1.33-v1.34          | unsupported | Structured Parameters          |
-| v0.4.0            | Kubernetes v1.34+               | supported   | Structured Parameters          |
+| v0.4.0            | Kubernetes v1.32+               | supported   | Structured Parameters          |
 
 ## QAT service configuration
 

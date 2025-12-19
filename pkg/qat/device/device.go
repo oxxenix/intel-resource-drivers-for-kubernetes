@@ -15,8 +15,16 @@ import (
 )
 
 const (
-	devicePath       = "bus/pci/devices"
-	driverPath       = "bus/pci/drivers"
+	SysfsDriverPath = "bus/pci/drivers"
+	SysfsDevicePath = "bus/pci/devices"
+
+	CDIVendor  = "intel.com"
+	CDIClass   = "qat"
+	CDIKind    = CDIVendor + "/" + CDIClass
+	DriverName = CDIClass + "." + CDIVendor
+
+	PreparedClaimsFileName = "preparedClaims.json"
+
 	moduleName       = "4xxx"
 	vfioPCI          = "vfio-pci"
 	vfioBind         = vfioPCI + "/bind"
@@ -35,6 +43,10 @@ const (
 
 var sysfsRoot string = ""
 
+func ClearSysfsRoot() {
+	sysfsRoot = ""
+}
+
 func getSysfsRoot() string {
 	if sysfsRoot != "" {
 		return sysfsRoot
@@ -47,11 +59,11 @@ func getSysfsRoot() string {
 }
 
 func sysfsDevicePath() string {
-	return getSysfsRoot() + "/" + devicePath
+	return getSysfsRoot() + "/" + SysfsDevicePath
 }
 
 func sysfsDriverPath() string {
-	return getSysfsRoot() + "/" + driverPath
+	return getSysfsRoot() + "/" + SysfsDriverPath
 }
 
 type State int
@@ -229,9 +241,6 @@ func GetControlNode() (*VFDevice, error) {
 func GetCDIDevices(pfdevices QATDevices) VFDevices {
 	vfdevices := GetResourceDevices(pfdevices)
 
-	ctrl, _ := GetControlNode()
-	vfdevices[ctrl.UID()] = ctrl
-
 	return vfdevices
 }
 
@@ -359,6 +368,7 @@ func (p *PFDevice) SetServices(srv []Services) error {
 		return err
 	}
 
+	p.Services = config
 	return nil
 }
 
@@ -384,12 +394,10 @@ func (p *PFDevice) getVFs() error {
 			break
 		}
 
-		if vf == nil {
-			for _, devices := range p.AllocatedDevices {
-				vf = findVFDevice(devices, vfdevice)
-				if vf != nil {
-					break
-				}
+		for _, devices := range p.AllocatedDevices {
+			vf = findVFDevice(devices, vfdevice)
+			if vf != nil {
+				break
 			}
 		}
 
@@ -517,80 +525,45 @@ func (p *PFDevice) Allocate(deviceUID string, allocatedBy string) (*VFDevice, er
 	return vf, nil
 }
 
-func (q QATDevices) Allocate(requestedDeviceUID string, requestedService Services, requestedBy string) (*VFDevice, bool, error) {
-	if vf := q.checkAlreadyAllocated(requestedDeviceUID, requestedService, requestedBy); vf != nil {
-		return vf, false, nil
+func (v VFDevice) CheckAlreadyAllocated(service Services, requester string) bool {
+	// check for already allocated service mapped by request ID
+	if !v.pfdevice.Services.Supports(service) {
+		klog.V(5).Infof("PFdev '%s' service '%s' does not support service '%s'", v.pfdevice.Device, v.pfdevice.Services.String(), service.String())
+		return false
 	}
 
-	if vf := q.allocateFromConfigured(requestedDeviceUID, requestedService, requestedBy); vf != nil {
-		return vf, false, nil
+	if allocated, exists := v.pfdevice.AllocatedDevices[requester]; exists {
+		if _, alreadyAllocated := allocated[v.UID()]; alreadyAllocated {
+			return true
+		}
 	}
-
-	if vf := q.allocateWithReconfiguration(requestedDeviceUID, requestedService, requestedBy); vf != nil {
-		return vf, true, nil
-	}
-
-	return nil, false, fmt.Errorf("could not allocate device '%s', service '%s' from any device", requestedDeviceUID, requestedService.String())
+	return false
 }
 
-func (q QATDevices) checkAlreadyAllocated(uid string, service Services, requester string) *VFDevice {
-	for _, pf := range q {
-		// check for already allocated service mapped by request ID
-		if !pf.Services.Supports(service) {
-			klog.V(5).Infof("PFdev '%s' service '%s' does not support service '%s'", pf.Device, pf.Services.String(), service.String())
-			continue
-		}
-		if allocated, exists := pf.AllocatedDevices[requester]; exists {
-			for _, vf := range allocated {
-				if uid == vf.UID() {
-					// duplicated request, already allocated
-					return vf
-				}
-			}
-		}
+func (v VFDevice) AllocateFromConfigured(service Services, requester string) bool {
+	// attempt allocation of requested device
+	if _, err := v.pfdevice.Allocate(v.UID(), requester); err == nil {
+		return true
 	}
-	return nil
+	return false
 }
 
-func (q QATDevices) allocateFromConfigured(uid string, service Services, requester string) *VFDevice {
-	for _, pf := range q {
-		// allocate from devices already configured for this service
-		if !pf.Services.Supports(service) {
-			continue
-		}
-		// attempt allocation of requested device
-		if vf, err := pf.Allocate(uid, requester); err == nil {
-			return vf
-		}
+func (v VFDevice) AllocateWithReconfiguration(service Services, requester string) bool {
+	if v.pfdevice.Services != None || !v.pfdevice.AllowReconfiguration {
+		return false
 	}
-	return nil
+	if err := v.pfdevice.SetServices([]Services{service}); err != nil {
+		_, _ = v.pfdevice.free(v.UID(), requester)
+		return false
+	}
+	if _, err := v.pfdevice.Allocate(v.UID(), requester); err != nil {
+		return false
+	}
+	return true
 }
 
-func (q QATDevices) allocateWithReconfiguration(uid string, service Services, requester string) *VFDevice {
-	for _, pf := range q {
-		if pf.Services != None || !pf.AllowReconfiguration {
-			continue
-		}
-		if vf, err := pf.Allocate(uid, requester); err == nil {
-			if err := pf.SetServices([]Services{service}); err == nil {
-				return vf
-			}
-			_, _ = pf.free(uid, requester)
-		}
-	}
-	return nil
-}
-
-func (q *QATDevices) Free(requestedDeviceUID string, requestedBy string) (bool, error) {
-	var err error
-	updated := false
-
-	for _, pfdevice := range *q {
-		if updated, err = pfdevice.free(requestedDeviceUID, requestedBy); err == nil {
-			return updated, nil
-		}
-	}
-	return false, err
+func (v *VFDevice) Free(requestedBy string) (bool, error) {
+	return v.pfdevice.free(v.UID(), requestedBy)
 }
 
 func (p *PFDevice) freePF(requestedDeviceUID string, requestedBy string) (bool, error) {
@@ -623,14 +596,12 @@ func (p *PFDevice) free(requestedDeviceUID string, requestedBy string) (bool, er
 	}
 
 	if requestedBy != "" {
-		update, err := p.freePF(requestedDeviceUID, requestedBy)
-		return update, err
-	} else {
-		for requestedBy := range p.AllocatedDevices {
-			update, err := p.freePF(requestedDeviceUID, requestedBy)
-			if err == nil {
-				return update, err
-			}
+		return p.freePF(requestedDeviceUID, requestedBy)
+	}
+
+	for requestedBy := range p.AllocatedDevices {
+		if update, err := p.freePF(requestedDeviceUID, requestedBy); err == nil {
+			return update, nil
 		}
 	}
 
@@ -706,10 +677,6 @@ func (v *VFDevice) Driver() string {
 	return v.VFDriver.String()
 }
 
-func (v *VFDevice) Iommu() string {
-	return v.VFIommu
-}
-
 func deviceuid(device string) string {
 	return "qatvf-" + strings.ReplaceAll(strings.ReplaceAll(device, ":", "-"), ".", "-")
 }
@@ -720,4 +687,8 @@ func (v *VFDevice) UID() string {
 
 func (v *VFDevice) Services() string {
 	return v.pfdevice.Services.String()
+}
+
+func (v *VFDevice) CDIName() string {
+	return fmt.Sprintf("%s=%s", CDIKind, v.UID())
 }

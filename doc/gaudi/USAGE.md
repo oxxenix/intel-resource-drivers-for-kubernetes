@@ -1,14 +1,29 @@
 ## Requirements
 
-- Kubernetes 1.33+, with `DynamicResourceAllocation` feature-flag enabled, and [other cluster parameters](../../hack/clusterconfig.yaml)
+- Kubernetes v1.32+, and  optionally [some cluster parameters](../../hack/clusterconfig.yaml) for advanced features, see [Cluster Setup](../CLUSTER_SETUP.md)
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
-  - Containerd v1.7 or newer
+  - Containerd v1.7 or newer with CDI enabled
 - [habanalabs container runtime](https://docs.habana.ai/en/latest/Installation_Guide/Bare_Metal_Fresh_OS.html#set-up-container-runtime) with CDI support
 
 ## Deploy resource-driver
 
-Deploy DeviceClass, Namespace and ResourceDriver
+### Helm Chart
+
+The [Intel Gaudi Resource Driver Helm Chart](../../charts/intel-gaudi-resource-driver) is published
+as a package to GitHub OCI registry, and can be installed directly with Helm.
+
+```console
+helm install \
+    --namespace "intel-gaudi-resource-driver" \
+    --create-namespace \
+    intel-gaudi-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gaudi-resource-driver-chart
+```
+
+See [details](../../charts/intel-gaudi-resource-driver/README.md) in the chart directory.
+
+### From sources
+
 ```bash
 kubectl apply -k deployments/gaudi/
 ```
@@ -57,6 +72,8 @@ rpl-s-gaudi.intel.com-x8m4h   rpl-s   gaudi.intel.com   rpl-s   4d1h
 ```
 
 Example contents of the ResourceSlice object:
+<details>
+
 ```bash
 $ kubectl get resourceSlices/rpl-s-gaudi.intel.com-x8m4h -o yaml
 apiVersion: resource.k8s.io/v1
@@ -100,6 +117,8 @@ spec:
     name: rpl-s
     resourceSliceCount: 1
 ```
+
+</details>
 
 ## Deploying test pod to verify Gaudi resource-driver works
 
@@ -177,6 +196,31 @@ In this example:
   - it will use Resource Claim `claim1`;
   - the container named `with-resource` will be using the resources allocated to the Resource Claim
     `claim1`.
+
+### Requesting DRA-managed accelerators through extended resources
+
+Starting K8s v1.34 it is possible to request resources managed by DRA driver without creating a
+ResourceClaim, through `resources` section of workload definition. This requires
+`DRAExtendedResources` [feature gate](../CLUSTER_SETUP.md#useful-and-required-featuregates) to be
+ enabled.
+
+If this feature is enabled in the cluster, ensure that `enableDRAExtendedResources` is set in the Helm
+chart values during the installation, or that
+[respective line](../../deployments/gaudi/base/device-class.yaml#L11) is uncommented in yaml when
+installing from the from sources.
+
+To check if this feature is enabled and successfully activated, check if DeviceClass has
+`Extended Resource Name`:
+```shell
+kubectl describe deviceclass/gaudi.intel.com
+```
+
+See [workload example](../../deployments/gaudi/examples/deployment-extended-resources.yaml).
+
+Starting K8s v1.35, it is also possible to request DRA driver-managed resource implicitly,
+based on the DRA driver name, even if the latter lacks `extendedResourceName` setting.
+See [example](../../deployments/gaudi/examples/deployment-extended-resources-implicit.yaml)
+
 
 ### Device Class
 
@@ -270,7 +314,7 @@ Unlike with normal Gaudi ResourceClaims:
 
 Health monitoring is temporary removed from DRA Gaudi driver v0.6.0.
 
-### Helm Chart
+## Known issues
 
-The [Intel Gaudi Resource Driver Helm Chart](../../charts/intel-gaudi-resource-driver) is published
-as a package to GitHub OCI registry, and can be installed directly with Helm.
+- In K8s v1.34.0 - v1.34.1 the kubelet might lose GRPC connection to a DRA driver after 30 minutes of inactivity. To prevent this situation, enable `ResourceHealthStatus` feature-gate in Kubelet and api-server.
+- In K8s v1.34-0 - v1.34.1 the Device Taint Eviction Controller can evict a Pod with a DeviceTaintToleration immediately after successful scheduling. Solution is to upgrade the cluster to a newer K8s version.

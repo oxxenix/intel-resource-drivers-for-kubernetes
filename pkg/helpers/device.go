@@ -36,21 +36,21 @@ const (
 	PCIAddressLength = len("0000:00:00.0")
 )
 
-// GetSysfsRoot tries to get path where sysfs is mounted from
-// env var, or fallback to hardcoded path.
+// GetSysfsRoot tries to get path where sysfs is mounted from the env var,
+// or fallback to hardcoded path.
 func GetSysfsRoot(sysfsPath string) string {
 	sysfsRoot, found := os.LookupEnv(SysfsEnvVarName)
 
 	if found {
 		if _, err := os.Stat(path.Join(sysfsRoot, sysfsPath)); err == nil {
-			fmt.Printf("using custom sysfs location: %v\n", sysfsRoot)
+			klog.V(5).Infof("using custom sysfs location: %v\n", sysfsRoot)
 			return sysfsRoot
 		} else {
-			fmt.Printf("could not find sysfs at '%v' from %v env var: %v\n", sysfsPath, SysfsEnvVarName, err)
+			klog.V(5).Infof("could not find sysfs at '%v' from %v env var: %v\n", sysfsPath, SysfsEnvVarName, err)
 		}
 	}
 
-	fmt.Printf("using default sysfs location: %v\n", sysfsDefaultRoot)
+	klog.V(5).Infof("using default sysfs location: %v\n", sysfsDefaultRoot)
 	// If /sys is not available, devices discovery will fail gracefully.
 	return sysfsDefaultRoot
 }
@@ -60,14 +60,14 @@ func GetDevRoot(devfsRootEnvVarName string, devPath string) string {
 
 	if found {
 		if _, err := os.Stat(path.Join(devfsRoot, devPath)); err == nil {
-			fmt.Printf("using custom devfs location: %v\n", devfsRoot)
+			klog.V(5).Infof("using custom devfs location: %v\n", devfsRoot)
 			return devfsRoot
 		} else {
-			fmt.Printf("could not find devfs at '%v' from %v env var: %v\n", devPath, devfsRootEnvVarName, err)
+			klog.V(5).Infof("could not find devfs at '%v' from %v env var: %v\n", devPath, devfsRootEnvVarName, err)
 		}
 	}
 
-	fmt.Printf("using default devfs root: %v\n", devfsDefaultRoot)
+	klog.V(5).Infof("using default devfs root: %v\n", devfsDefaultRoot)
 	return devfsDefaultRoot
 }
 
@@ -98,8 +98,22 @@ func DeterminePCIRoot(link string) string {
 	}
 	klog.V(5).Infof("PCI device location: %v", linkTarget)
 	parts := strings.Split(linkTarget, "/")
-	if len(parts) > 3 && parts[0] == "" && parts[2] == "devices" {
-		return strings.Replace(parts[3], "pci0000:", "", 1)
+
+	// To support arbitrary sysfs location, discard leading path elements
+	// before devices minus one.
+	trueSysfsRootIdx := 0
+	for idx, pathElement := range parts {
+		if pathElement == "devices" && idx > 0 {
+			trueSysfsRootIdx = idx - 1
+			break
+		}
+	}
+	if trueSysfsRootIdx != 0 {
+		parts = parts[trueSysfsRootIdx:]
+	}
+
+	if len(parts) > 2 && parts[1] == "devices" {
+		return strings.Replace(parts[2], "pci0000:", "", 1)
 	}
 	klog.Warningf("could not parse sysfs link target %v: %v", linkTarget, parts)
 

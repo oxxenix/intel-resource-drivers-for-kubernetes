@@ -8,27 +8,55 @@ spec:
     spec:
       initContainers:
       - name: device-faker
-        image: registry.local/intel-device-faker:v0.4.1
+        # 'Always' policy makes it a sideCar container with longer lifecycle,
+        # allowing it to be terminated last
+        # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#termination-with-sidecars
+        # which allows proper fake root cleanup.
+        restartPolicy: Always
+        # TODO: switch to CI image when public CI is in place
+        image: registry.local/intel-device-faker:v0.5.0
         imagePullPolicy: Always
-        command: ["/device-faker", "gpu", "-t", "/opt/templates/gpu-template.json", "-d", "/tmp/fake-root"]
+        command: ["/device-faker", "gpu", "-t", "/opt/templates/gpu-template.json", "-r", "-d", "/tmp/gpu-fake-root", "-c", "-p"]
         volumeMounts:
-        - name: fake-root
-          mountPath: /tmp/fake-root
+        - name: gpu-fake-root
+          mountPath: /tmp/gpu-fake-root
+        securityContext:
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+            add:  [ "MKNOD" ]
       containers:
       - name: kubelet-plugin
+        command: ["/kubelet-gpu-plugin", "-v", "5"]
+        # TODO: change to :devel when public CI is in place
+        image: ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver:devel
+        # TODO: pull policy is needed when :devel is used instead of :latest
+        imagePullPolicy: Always
         env:
         - name: SYSFS_ROOT
-          value: "/fake-sysfs"
+          value: "/tmp/gpu-fake-root/sysfs"
+        - name: DEVFS_ROOT
+          value: "/tmp/gpu-fake-root/dev"
+        # Host dir for system's dynamic CDI dir. Containerd & CRI-O default value.
+        - name: CDI_ROOT
+          value: "/var/run/cdi"
         volumeMounts:
-        - name: fake-root
-          mountPath: /fake-sysfs
+        - name: gpu-fake-root
+          mountPath: /tmp/gpu-fake-root/sysfs
           subPath: sysfs
-        - name: fake-root
-          mountPath: /fake-dev/dri
-          subPath: dev/dri
-        - name: fake-root
-          mountPath: /fake-cdi
-          subPath: cdi
+        - name: gpu-fake-root
+          mountPath: /tmp/gpu-fake-root/dev
+          subPath: dev
+        # Host dir for system's dynamic CDI dir. Containerd & CRI-O default value.
+        - name: dynamic-cdi
+          mountPath: /var/run/cdi
       volumes:
-      - name: fake-root
-        emptyDir: {}
+      - name: gpu-fake-root
+        hostPath:
+          path: /tmp/gpu-fake-root
+      # Host dir for system's dynamic CDI dir. Containerd & CRI-O default value.
+      - name: dynamic-cdi
+        hostPath:
+          path: /var/run/cdi
+

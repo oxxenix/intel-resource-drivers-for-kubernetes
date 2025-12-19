@@ -56,7 +56,7 @@ ifndef DOCKER
 	endif
 endif
 
-DEVICE_FAKER_VERSION ?= v0.4.1
+DEVICE_FAKER_VERSION ?= v0.5.0
 DEVICE_FAKER_IMAGE_NAME ?= intel-device-faker
 DEVICE_FAKER_IMAGE_VERSION ?= $(DEVICE_FAKER_VERSION)
 DEVICE_FAKER_IMAGE_TAG ?= $(REGISTRY)/$(DEVICE_FAKER_IMAGE_NAME):$(DEVICE_FAKER_IMAGE_VERSION)
@@ -163,7 +163,7 @@ licenses: clean-licenses
 	"./pkg/gpu/cdihelpers" \
 	"./pkg/gpu/device" \
 	"./pkg/gpu/discovery" \
-	"./pkg/qat/cdi" \
+	"./pkg/qat/cdihelpers" \
 	"./pkg/qat/device" \
 	"./pkg/helpers" \
 	"./pkg/fakesysfs" \
@@ -257,16 +257,18 @@ else
 		go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 endif
 
+TEST_TARGET ?= test
+
 test-containerized:
 	$(DOCKER) run \
 	-it -e container=yes \
 	-e http_proxy=$(http_proxy) \
 	-e https_proxy=$(https_proxy) \
 	-e no_proxy=$(no_proxy) \
-	--user 1000:1000 \
+	--user $(shell id -u):$(shell id -g) \
 	-v "$(shell pwd)":/home/ubuntu/src:rw \
 	"$(TEST_IMAGE)" \
-	bash -c "cd src && make test"
+	bash -c "cd src && make $(TEST_TARGET)"
 
 html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
@@ -277,20 +279,20 @@ $(COVERAGE_FILE): $(shell find cmd pkg -name '*.go')
 	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
 # gpu coverage
-gpu-coverage.out: $(shell find cmd/kubelet-gpu-plugin pkg/gpu -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gpu-plugin/... ./pkg/gpu/...)
+gpu-coverage.out: $(shell find cmd/kubelet-gpu-plugin pkg/gpu pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gpu-plugin/... ./pkg/gpu/... ./pkg/helpers/...)
 
 # qat coverage
-qat-coverage.out: $(shell find cmd/kubelet-qat-plugin cmd/qat-showdevice pkg/qat -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-qat-plugin/... ./cmd/qat-showdevice/... ./pkg/qat/...)
+qat-coverage.out: $(shell find cmd/kubelet-qat-plugin cmd/qat-showdevice pkg/qat pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-qat-plugin/... ./cmd/qat-showdevice/... ./pkg/qat/... ./pkg/helpers/...)
 
 # gaudi coverage
-gaudi-coverage.out: $(shell find cmd/kubelet-gaudi-plugin pkg/gaudi -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gaudi-plugin/... ./pkg/gaudi/...)
+gaudi-coverage.out: $(shell find cmd/kubelet-gaudi-plugin pkg/gaudi pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/kubelet-gaudi-plugin/... ./pkg/gaudi/... ./pkg/helpers/...)
 
 # cdi-specs-generator coverage
-cdispecsgen-coverage.out: $(shell find cmd/cdi-specs-generator pkg/gpu pkg/gaudi -name '*.go')
-	go test -v -coverprofile=$@ $(shell go list ./cmd/cdi-specs-generator/... ./pkg/gpu/... ./pkg/gaudi/...)
+cdispecsgen-coverage.out: $(shell find cmd/cdi-specs-generator pkg/gpu pkg/gaudi pkg/helpers -name '*.go')
+	go test -v -coverprofile=$@ $(shell go list ./cmd/cdi-specs-generator/... ./pkg/gpu/... ./pkg/gaudi/... ./pkg/helpers/...)
 
 .PHONY: %-coverage
 %-coverage: %-coverage.out

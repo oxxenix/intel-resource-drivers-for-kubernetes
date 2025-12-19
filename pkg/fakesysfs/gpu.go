@@ -27,6 +27,11 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
+const (
+	// Uninitialized renderDidx is zero, real renderD index starts with 128.
+	NoRenderDev = "renderD0"
+)
+
 var perDeviceIdTilesDirs = map[string][]string{
 	"0x56c0": {"gt"}, // Flex170
 	"0x56c1": {"gt"}, // Flex140
@@ -164,14 +169,8 @@ func fakeGpuDRI(sysfsRoot string, devfsRoot string, gpu *device.DeviceInfo, i915
 	}
 
 	// devfs setup
-	if realDevices {
-		if err := fakeGpuDRIDeviceFiles(devfsRoot, cardName, renderdName); err != nil {
-			return fmt.Errorf("creating fake devfs: %v", err)
-		}
-	} else {
-		if err := fakeGpuDRIPlainFiles(devfsRoot, cardName, renderdName); err != nil {
-			return fmt.Errorf("creating fake devfs: %v", err)
-		}
+	if err := fakeGpuDRIDevices(devfsRoot, cardName, renderdName, realDevices); err != nil {
+		return fmt.Errorf("creating fake devfs: %v", err)
 	}
 
 	return createDevfsSymlinks(devfsRoot, cardName, renderdName, gpu.PCIAddress)
@@ -182,7 +181,7 @@ func createDevfsSymlinks(devfsRoot, cardName, renderdName, pciAddress string) er
 		return fmt.Errorf("creating fake sysfs, err: %v", err)
 	}
 
-	if renderdName != "renderD0" { // some GPUs do not have render device
+	if renderdName != NoRenderDev { // some GPUs do not have render device
 		if err := os.Symlink(fmt.Sprintf("../%v", renderdName), path.Join(devfsRoot, "dri/by-path/", fmt.Sprintf("pci-%v-render", pciAddress))); err != nil {
 			return fmt.Errorf("creating renderD symlink, err: %v", err)
 		}
@@ -190,34 +189,6 @@ func createDevfsSymlinks(devfsRoot, cardName, renderdName, pciAddress string) er
 
 	return nil
 
-}
-
-func fakeGpuDRIDeviceFiles(devfsRoot, cardName, renderdName string) error {
-	if err := createDevice(path.Join(devfsRoot, "dri", cardName)); err != nil {
-		return fmt.Errorf("creating card device, err: %v", err)
-	}
-
-	if renderdName != "renderD0" { // some GPUs do not have render device
-		if err := createDevice(path.Join(devfsRoot, "dri", renderdName)); err != nil {
-			return fmt.Errorf("creating renderD device, err: %v", err)
-		}
-	}
-
-	return nil
-}
-
-func fakeGpuDRIPlainFiles(devfsRoot, cardName, renderdName string) error {
-	if err := helpers.WriteFile(path.Join(devfsRoot, "dri", cardName), ""); err != nil {
-		return fmt.Errorf("creating card text file, err: %v", err)
-	}
-
-	if renderdName != "renderD0" { // some GPUs do not have render device
-		if err := helpers.WriteFile(path.Join(devfsRoot, "dri", renderdName), ""); err != nil {
-			return fmt.Errorf("creating renderD text file, err: %v", err)
-		}
-	}
-
-	return nil
 }
 
 // fakeSysFsGpuDevices creates PCI and DRM devices layout in existing fake sysfsRoot.
@@ -230,7 +201,8 @@ func fakeSysFsGpuDevices(sysfsRoot string, devfsRoot string, gpus device.Devices
 		}
 
 		// driver setup
-		driverDeviceDir := path.Join(sysfsRoot, "bus/pci/drivers", gpu.Driver, gpu.PCIAddress)
+		pciDriverDir := path.Join(sysfsRoot, "bus/pci/drivers", gpu.Driver)
+		driverDeviceDir := path.Join(pciDriverDir, gpu.PCIAddress)
 		if err := os.MkdirAll(driverDeviceDir, 0750); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
@@ -242,9 +214,31 @@ func fakeSysFsGpuDevices(sysfsRoot string, devfsRoot string, gpus device.Devices
 		if err := fakeGpuDRI(sysfsRoot, devfsRoot, gpu, driverDeviceDir, realDevices); err != nil {
 			return err
 		}
+
+		if writeErr := helpers.WriteFile(path.Join(pciDriverDir, "bind"), ""); writeErr != nil {
+			return fmt.Errorf("writing PCI device file: %v", writeErr)
+		}
+
 	}
 
 	return fakeSysfsSRIOVContents(sysfsRoot, gpus)
+}
+
+func fakeGpuDRIDevices(devfsRoot, cardName, renderdName string, real bool) error {
+	devices := []string{
+		path.Join(devfsRoot, "dri", cardName),
+	}
+	if renderdName != NoRenderDev { // some GPUs do not have render device
+		devices = append(devices, path.Join(devfsRoot, "dri", renderdName))
+	}
+
+	for _, device := range devices {
+		if err := createDevice(device, real); err != nil {
+			return fmt.Errorf("creating device: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func FakeSysFsGpuContents(sysfsRoot string, devfsRoot string, gpus device.DevicesInfo, realDevices bool) error {

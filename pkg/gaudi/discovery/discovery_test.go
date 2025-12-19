@@ -1,7 +1,6 @@
 package discovery
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"reflect"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
@@ -46,44 +46,45 @@ func TestDetermineDeviceName(t *testing.T) {
 		})
 	}
 }
-func TestGetAccelIndexes(t *testing.T) {
+
+func TestGetAccelIndex(t *testing.T) {
 	tests := []struct {
-		name       string
-		setupFunc  func(string) error
-		expected   map[string]gaudiIndexesType
-		shouldFail bool
+		name        string
+		setupFunc   func(string, string) error
+		expectedIdx uint64
+		shouldFail  bool
 	}{
 		{
-			name:      "valid accel indexes",
-			setupFunc: setupValidAccelIndexes,
-			expected: map[string]gaudiIndexesType{
-				"0000:00:00.0": {accelIdx: 0, moduleIdx: 1},
+			name:        "valid accel indexes",
+			setupFunc:   func(blank string, blank2 string) error { return nil },
+			expectedIdx: 1,
+			shouldFail:  false,
+		},
+		{
+			name: "invalid accel index",
+			setupFunc: func(sysfsroot, pciAddress string) error {
+				return os.Rename(
+					path.Join(sysfsroot, "bus/pci/drivers/habanalabs", pciAddress, "accel/accel1"),
+					path.Join(sysfsroot, "bus/pci/drivers/habanalabs", pciAddress, "accel/accel18446744073709551616"))
 			},
-			shouldFail: false,
+			expectedIdx: 0,
+			shouldFail:  true,
 		},
 		{
-			name:       "missing module_id file",
-			setupFunc:  setupMissingModuleIDFile,
-			expected:   map[string]gaudiIndexesType{},
-			shouldFail: false,
+			name: "invalid accel device name",
+			setupFunc: func(sysfsroot, pciAddress string) error {
+				return os.Rename(
+					path.Join(sysfsroot, "bus/pci/drivers/habanalabs", pciAddress, "accel/accel1"),
+					path.Join(sysfsroot, "bus/pci/drivers/habanalabs", pciAddress, "accel/accelX"))
+			},
+			expectedIdx: 0,
+			shouldFail:  true,
 		},
 		{
-			name:       "missing pci_addr file",
-			setupFunc:  setupMissingPCIAddrFile,
-			expected:   map[string]gaudiIndexesType{},
-			shouldFail: false,
-		},
-		{
-			name:       "invalid accel index",
-			setupFunc:  setupInvalidAccelIndex,
-			expected:   map[string]gaudiIndexesType{},
-			shouldFail: false,
-		},
-		{
-			name:       "Sysfs directory does not exist",
-			setupFunc:  setupSysfsDirDoesNotExist,
-			expected:   map[string]gaudiIndexesType{},
-			shouldFail: false,
+			name:        "Sysfs directory does not exist",
+			setupFunc:   func(sysfsRoot, pciAddress string) error { return os.RemoveAll(sysfsRoot) },
+			expectedIdx: 0,
+			shouldFail:  true,
 		},
 	}
 
@@ -91,75 +92,50 @@ func TestGetAccelIndexes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 			if err != nil {
-				t.Fatalf("could not create fake system dirs: %v", err)
+				t.Fatalf("%v: could not create fake system dirs: %v", tt.name, err)
 			}
 			defer testhelpers.CleanupTest(t, "TestAddDeviceToAnySpec", testDirs.TestRoot)
+
+			if err := fakesysfs.FakeSysFsGaudiContents(
+				testDirs.TestRoot,
+				testDirs.SysfsRoot,
+				testDirs.DevfsRoot,
+				device.DevicesInfo{
+					"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 1, ModuleIdx: 0, UID: "0000-0f-00-0-0x1020", PCIRoot: "01"},
+				},
+				false); err != nil {
+				t.Fatalf("%v: could not setup fake sysfs for test: %v", tt.name, err)
+			}
+
 			if tt.setupFunc != nil {
-				if err := tt.setupFunc(testDirs.SysfsRoot); err != nil {
-					t.Fatalf("could not set up test: %v", err)
+				if err := tt.setupFunc(testDirs.SysfsRoot, "0000:0f:00.0"); err != nil {
+					t.Fatalf("%v: could not set up test: %v", tt.name, err)
 				}
 			}
 
-			result := getAccelIndexes(testDirs.SysfsRoot)
-			if !tt.shouldFail && !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("expected %v, got %v", tt.expected, result)
+			deviceAccelDir := path.Join(testDirs.SysfsRoot, "bus/pci/drivers/habanalabs/0000:0f:00.0/accel")
+			idx, err := getAccelIndex(deviceAccelDir)
+			if !tt.shouldFail && tt.expectedIdx != idx {
+				t.Errorf("%v: expected idx %v, got %v, error: %v", tt.name, tt.expectedIdx, idx, err)
 			}
 		})
 	}
 }
 
-func setupValidAccelIndexes(dir string) error {
-	if err := os.MkdirAll(path.Join(dir, "accel0/device"), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path.Join(dir, "accel0/device/module_id"), []byte("1\n"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path.Join(dir, "accel0/device/pci_addr"), []byte("0000:00:00.0\n"), 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setupMissingModuleIDFile(dir string) error {
-	if err := os.MkdirAll(path.Join(dir, "accel0/device"), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path.Join(dir, "accel0/device/pci_addr"), []byte("0000:00:00.0\n"), 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setupMissingPCIAddrFile(dir string) error {
-	if err := os.MkdirAll(path.Join(dir, "accel0/device"), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path.Join(dir, "accel0/device/module_id"), []byte("1\n"), 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setupInvalidAccelIndex(dir string) error {
-	if err := os.MkdirAll(path.Join(dir, "accelX/device"), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path.Join(dir, "accelX/device/module_id"), []byte("1\n"), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path.Join(dir, "accelX/device/pci_addr"), []byte("0000:00:00.0\n"), 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setupSysfsDirDoesNotExist(dir string) error {
-	os.RemoveAll(dir)
-	return nil
-}
-
 func TestDiscoverDevices(t *testing.T) {
+	testDevicesInfo := device.DevicesInfo{
+		"0000-0f-00-0-0x1020": {
+			Model:      "0x1020",
+			ModelName:  "Gaudi2",
+			PCIAddress: "0000:0f:00.0",
+			DeviceIdx:  0,
+			ModuleIdx:  0,
+			UID:        "0000-0f-00-0-0x1020",
+			PCIRoot:    "01",
+			UVerbsIdx:  1024, // device.UverbsMissingIdx
+		},
+	}
+
 	tests := []struct {
 		name       string
 		setupFunc  func(string, string) error
@@ -168,40 +144,59 @@ func TestDiscoverDevices(t *testing.T) {
 	}{
 		{
 			name: "single device",
-			setupFunc: func(SysfsRoot, DevfsRoot string) error {
-				if err := fakesysfs.FakeSysFsGaudiContents(
-					SysfsRoot,
-					DevfsRoot,
-					device.DevicesInfo{
-						"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, ModuleIdx: 0, UID: "0000-0f-00-0-0x1020"},
-					},
-					false,
-				); err != nil {
-					return fmt.Errorf("setup error: could not create fake sysfs: %v", err)
-				}
-
+			setupFunc: func(sysfsRoot, pciAddr string) error {
 				return nil
 			},
-			expected: map[string]*device.DeviceInfo{
-				"0000-0f-00-0-0x1020": {
-					Model:      "0x1020",
-					PCIAddress: "0000:0f:00.0",
-					DeviceIdx:  0,
-					ModuleIdx:  0,
-					UID:        "0000-0f-00-0-0x1020",
-					ModelName:  "Gaudi2",
-				},
-			},
+			expected:   testDevicesInfo,
 			shouldFail: false,
 		},
 		{
 			name: "sysfsDir does not exist",
-			setupFunc: func(SysfsRoot, DevfsRoot string) error {
-				os.RemoveAll(SysfsRoot)
-				return nil
+			setupFunc: func(sysfsRoot, pciAddress string) error {
+				return os.RemoveAll(sysfsRoot)
 			},
 			expected:   map[string]*device.DeviceInfo{},
-			shouldFail: false,
+			shouldFail: true,
+		},
+		{
+			name: "sysfsDir exist, but not readable",
+			setupFunc: func(sysfsRoot, pciAddress string) error {
+				return os.Chmod(sysfsRoot, 0200)
+			},
+			expected:   map[string]*device.DeviceInfo{},
+			shouldFail: true,
+		},
+		{
+			name: "missing module_id file",
+			setupFunc: func(sysfsroot, pciAddress string) error {
+				return os.Remove(path.Join(sysfsroot, "bus/pci/drivers/habanalabs", pciAddress, "module_id"))
+			},
+			expected:   map[string]*device.DeviceInfo{},
+			shouldFail: true,
+		},
+		{
+			name: "invalid module_id index",
+			setupFunc: func(sysfsroot, pciAddress string) error {
+				return helpers.WriteFile(path.Join(sysfsroot, "bus/pci/drivers/habanalabs", pciAddress, "module_id"), "X")
+			},
+			expected:   map[string]*device.DeviceInfo{},
+			shouldFail: true,
+		},
+		{
+			name: "device file does not exist",
+			setupFunc: func(sysfsRoot, pciAddress string) error {
+				return os.RemoveAll(path.Join(sysfsRoot, "bus/pci/drivers/habanalabs", pciAddress, "device"))
+			},
+			expected:   map[string]*device.DeviceInfo{},
+			shouldFail: true,
+		},
+		{
+			name: "accel dir does not exist",
+			setupFunc: func(sysfsRoot, pciAddress string) error {
+				return os.RemoveAll(path.Join(sysfsRoot, "bus/pci/drivers/habanalabs", pciAddress, "accel"))
+			},
+			expected:   map[string]*device.DeviceInfo{},
+			shouldFail: true,
 		},
 	}
 
@@ -213,12 +208,23 @@ func TestDiscoverDevices(t *testing.T) {
 			}
 			defer testhelpers.CleanupTest(t, "TestDiscoverDevices", testDirs.TestRoot)
 
-			if err := tt.setupFunc(testDirs.SysfsRoot, testDirs.DevfsRoot); err != nil {
+			if err := fakesysfs.FakeSysFsGaudiContents(
+				testDirs.TestRoot,
+				testDirs.SysfsRoot,
+				testDirs.DevfsRoot,
+				testDevicesInfo,
+				false,
+			); err != nil {
+				t.Errorf("setup error: could not create fake sysfs: %v", err)
+				return
+			}
+
+			if err := tt.setupFunc(testDirs.SysfsRoot, "0000:0f:00.0"); err != nil {
 				t.Fatalf("could not set up test: %v", err)
 			}
 			result := DiscoverDevices(testDirs.SysfsRoot, device.DefaultNamingStyle)
 			if !tt.shouldFail && !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("expected %v, got %v", tt.expected["0000-0f-00-0-0x1020"], result["0000-0f-00-0-0x1020"])
+				t.Errorf("expected %+v, got %+v", tt.expected["0000-0f-00-0-0x1020"], result["0000-0f-00-0-0x1020"])
 			}
 		})
 	}

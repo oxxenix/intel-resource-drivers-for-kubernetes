@@ -32,10 +32,6 @@ spec:
               fieldPath: metadata.namespace
         - name: SYSFS_ROOT
           value: "/sys"
-        # Only use DEVFS_ROOT when using fake devfs with device-faker
-        #- name: DEVFS_ROOT
-        #  value: "/devfs"
-
         volumeMounts:
         - name: plugins-registry
           mountPath: /var/lib/kubelet/plugins_registry
@@ -47,15 +43,14 @@ spec:
           mountPath: /var/run/cdi
         - name: sysfs
           mountPath: "/sys"
-        # Only use DEVFS_ROOT when using fake devfs with device-faker
-        #- name: devfs
-        #  mountPath: "/devfs"
         securityContext:
           privileged: true
           capabilities:
             drop: [ "ALL" ]
           readOnlyRootFilesystem: true
           runAsUser: 0
+          # Note, OpenShift has 'runtime/default' as a default.
+          # See https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/seccomp-profiles#custom-seccomp-profile
           seccompProfile:
             type: RuntimeDefault
       volumes:
@@ -74,11 +69,6 @@ spec:
       - name: sysfs
         hostPath:
           path: /sys
-      # Only use DEVFS_ROOT when using fake devfs with device-faker
-      #- name: devfs
-      #  hostPath:
-      #    path: /dev
-
 ---
 apiVersion: v1
 kind: ServiceAccount

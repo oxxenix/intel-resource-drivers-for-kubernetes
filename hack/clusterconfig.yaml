@@ -10,17 +10,19 @@ kubernetesVersion: v1.34.0
 apiServer:
   extraArgs:
   - name: feature-gates
-    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true,DRAResourceClaimDeviceStatus=true,ResourceHealthStatus=true
+    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true,DRAResourceClaimDeviceStatus=true,ResourceHealthStatus=true,DRAPrioritizedList=true
+  - name: runtime-config
+    value: resource.k8s.io/v1beta1=true,resource.k8s.io/v1alpha3=true
 clusterName: kubernetes
 controllerManager:
   extraArgs:
   - name: feature-gates
-    value: DRADeviceTaints=true
+    value: DRADeviceTaints=true,DRAPrioritizedList=true
 imageRepository: registry.k8s.io
 scheduler:
   extraArgs:
   - name: feature-gates
-    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true
+    value: DRAExtendedResource=true,DRADeviceTaints=true,DRAAdminAccess=true,DRAPartitionableDevices=true,DRAPrioritizedList=true
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration

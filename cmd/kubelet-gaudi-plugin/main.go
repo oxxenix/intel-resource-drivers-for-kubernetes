@@ -26,8 +26,36 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
+type GaudiFlags struct {
+	GaudiHookPath string
+	GaudinetPath  string
+}
+
 func main() {
-	if err := helpers.NewApp(gaudi.DriverName, newDriver, []cli.Flag{}, nil).Run(os.Args); err != nil {
+	gaudiFlags := GaudiFlags{
+		GaudiHookPath: gaudi.DefaultHabanaHookPath,
+		GaudinetPath:  gaudi.DefaultGaudinetPath,
+	}
+	cliFlags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "gaudi-hook-path",
+			Aliases:     []string{"p"},
+			Usage:       "full path to the habana-container-hook",
+			Value:       gaudi.DefaultHabanaHookPath,
+			Destination: &gaudiFlags.GaudiHookPath,
+			EnvVars:     []string{"GAUDI_HOOK_PATH"},
+		},
+		&cli.StringFlag{
+			Name:        "gaudinet-path",
+			Aliases:     []string{"n"},
+			Usage:       "full path to the network configuration file",
+			Value:       gaudi.DefaultGaudinetPath,
+			Destination: &gaudiFlags.GaudinetPath,
+			EnvVars:     []string{"GAUDINET_PATH"},
+		},
+	}
+
+	if err := helpers.NewApp(gaudi.DriverName, newDriver, cliFlags, &gaudiFlags).Run(os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

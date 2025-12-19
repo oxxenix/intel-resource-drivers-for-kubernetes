@@ -1,6 +1,7 @@
 package cdihelpers
 
 import (
+	"os"
 	"testing"
 
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
@@ -95,7 +96,7 @@ func TestSyncDetectedDevicesWithRegistry(t *testing.T) {
 
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
-			if err := SyncDetectedDevicesWithRegistry(cdiCache, tt.detectedDevices, tt.doCleanup); (err != nil) != tt.expectedError {
+			if err := AddDetectedDevicesToCDIRegistry(cdiCache, tt.detectedDevices, tt.doCleanup); (err != nil) != tt.expectedError {
 				t.Errorf("SyncDetectedDevicesWithRegistry() error = %v, expectedError %v", err, tt.expectedError)
 			}
 		})
@@ -135,6 +136,13 @@ func TestAddDeviceToAnySpec(t *testing.T) {
 		},
 	}
 
+	gaudinetFile, err := os.CreateTemp("/tmp", "gaudinet-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gaudinetFile.Close()
+	defer os.Remove(gaudinetFile.Name())
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testDirs, err := testhelpers.NewTestDirs(device.DriverName)
@@ -156,7 +164,7 @@ func TestAddDeviceToAnySpec(t *testing.T) {
 			testhelpers.CDICacheDelay()
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
-			if err := AddDeviceToAnySpec(cdiCache, device.CDIVendor, tt.newDevice); (err != nil) != tt.expectedError {
+			if err := NewBlankDevice(cdiCache, tt.newDevice, "/bin/echo", gaudinetFile.Name()); (err != nil) != tt.expectedError {
 				t.Errorf("AddDeviceToAnySpec() error = %v, expectedError %v", err, tt.expectedError)
 			}
 
@@ -261,7 +269,7 @@ func TestDeleteDeviceAndWrite(t *testing.T) {
 			testhelpers.CDICacheDelay()
 			t.Logf("existing specs: %v", cdiCache.GetVendorSpecs(device.CDIVendor))
 
-			if err := DeleteDeviceAndWrite(cdiCache, tt.claimUID); (err != nil) != tt.expectedError {
+			if err := DeleteBlankDevices(cdiCache, tt.claimUID); (err != nil) != tt.expectedError {
 				t.Errorf("DeleteDeviceAndWrite() error = %v, expectedError %v", err, tt.expectedError)
 			}
 

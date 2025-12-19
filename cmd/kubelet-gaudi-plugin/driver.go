@@ -18,11 +18,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
@@ -40,10 +42,24 @@ type driver struct {
 	helper *kubeletplugin.Helper
 }
 
+func getGaudiFlags(someFlags any) (*GaudiFlags, error) {
+	switch v := someFlags.(type) {
+	case *GaudiFlags:
+		return v, nil
+	default:
+		return &GaudiFlags{}, fmt.Errorf("could not parse driver flags as GaudiFlags (got type: %T)", v)
+	}
+}
+
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
-	sysfsDir := helpers.GetSysfsRoot(device.SysfsAccelPath)
+	sysfsDir := helpers.GetSysfsRoot(device.SysfsDriverPath)
 	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
+
+	gaudiFlags, err := getGaudiFlags(config.DriverFlags)
+	if err != nil {
+		return nil, fmt.Errorf("getGaudiFlags: %w", err)
+	}
 
 	detectedDevices := discovery.DiscoverDevices(sysfsDir, device.DefaultNamingStyle)
 	if len(detectedDevices) == 0 {
@@ -51,7 +67,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	}
 
 	klog.V(3).Info("Creating new NodeState")
-	state, err := newNodeState(detectedDevices, config.CommonFlags.CdiRoot, preparedClaimsFilePath, config.CommonFlags.NodeName)
+	state, err := newNodeState(detectedDevices, config.CommonFlags.CdiRoot, preparedClaimsFilePath, config.CommonFlags.NodeName, gaudiFlags.GaudiHookPath, gaudiFlags.GaudinetPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
@@ -130,7 +146,8 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 			continue
 		}
 
-		if err := cdihelpers.DeleteDeviceAndWrite(d.state.CdiCache, string(claim.UID)); err != nil {
+		// Cleanup special CDI devices that hold only env variables.
+		if err := cdihelpers.DeleteBlankDevices(d.state.CdiCache, string(claim.UID)); err != nil {
 			response[claim.UID] = fmt.Errorf("error deleting CDI device: %v", err)
 			continue
 		}
@@ -154,15 +171,29 @@ func (d *driver) PublishResourceSlice(ctx context.Context) error {
 	return nil
 }
 
-func (d *driver) HandleError(ctx context.Context, err error, message string) {
-	// TODO: FIXME: error is ignored ATM, handle it properly.
-	klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error")
-}
-
 func (d *driver) Shutdown(ctx context.Context) error {
 	klog.V(5).Info("Shutting down driver")
 
 	d.helper.Stop()
 
 	return nil
+}
+
+// HandleError is called by Kubelet when an error occures asyncronously, and
+// needs to be communicated to the DRA driver.
+//
+// This is a mandatory method because drivers should check for errors
+// which won't get resolved by retrying and then fail or change the
+// slices that they are trying to publish:
+// - dropped fields (see [resourceslice.DroppedFieldsError])
+// - validation errors (see [apierrors.IsInvalid]).
+func (d *driver) HandleError(ctx context.Context, err error, message string) {
+	if errors.Is(err, kubeletplugin.ErrRecoverable) {
+		// TODO: FIXME: error is ignored ATM, handle it properly.
+		klog.FromContext(ctx).Error(err, "DRAPlugin encountered an error.")
+	} else {
+		klog.FromContext(ctx).Error(err, "Unrecoverable error.")
+	}
+
+	runtime.HandleErrorWithContext(ctx, err, message)
 }

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -114,12 +115,15 @@ func newCommand() *cobra.Command {
 
 			switch deviceType {
 			case "gpu":
-				return handleGPUDevices(template, testDirs, realDevices, cleanup)
+				err = handleGPUDevices(template, testDirs, realDevices)
 			case "gaudi":
-				return handleGaudiDevices(template, testDirs, realDevices, cleanup)
+				err = handleGaudiDevices(template, testDirs, realDevices)
+			}
+			if err != nil {
+				fmt.Printf("ERROR: %v", err)
 			}
 
-			return nil
+			return printAndWaitForCleanup(testDirs, cmd.Flag("print").Value.String() == "true", cleanup)
 		},
 	}
 
@@ -130,12 +134,13 @@ func newCommand() *cobra.Command {
 	cmd.Flags().StringP("target-dir", "d", "", "Target directory, default is random /tmp/test-*")
 	cmd.Flags().BoolP("real-devices", "r", false, "Create real device files (requires root)")
 	cmd.Flags().BoolP("cleanup", "c", false, "Wait for SIGTERM, cleanup before exiting")
+	cmd.Flags().BoolP("print", "p", false, "Print resulting file-system tree")
 	cmd.SetVersionTemplate("device-faker version: {{.Version}}\n")
 
 	return cmd
 }
 
-func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool, cleanup bool) error {
+func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool) error {
 	devices := make(gpuDevice.DevicesInfo)
 	devicesBytes, err := os.ReadFile(templateFilePath)
 	if err != nil {
@@ -159,10 +164,11 @@ func handleGPUDevices(templateFilePath string, testDirs helpers.TestDirsType, re
 	fmt.Printf("fake sysfs: %v\n", testDirs.SysfsRoot)
 	fmt.Printf("fake devfs: %v\n", testDirs.DevfsRoot)
 	fmt.Printf("fake CDI: %v\n", testDirs.CdiRoot)
-	return doCleanup(testDirs, cleanup)
+
+	return nil
 }
 
-func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool, cleanup bool) error {
+func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, realDevices bool) error {
 	devices := make(gaudiDevice.DevicesInfo)
 	devicesBytes, err := os.ReadFile(templateFilePath)
 	if err != nil {
@@ -173,7 +179,7 @@ func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, 
 		return fmt.Errorf("failed parsing file %v. Err: %v", templateFilePath, err)
 	}
 
-	err = fakesysfs.FakeSysFsGaudiContents(testDirs.SysfsRoot, testDirs.DevfsRoot, devices, realDevices)
+	err = fakesysfs.FakeSysFsGaudiContents(testDirs.TestRoot, testDirs.SysfsRoot, testDirs.DevfsRoot, devices, realDevices)
 	if err != nil {
 		fmt.Printf("could not setup fake filesystem in %v: %v\n", testDirs.TestRoot, err)
 		if err := os.RemoveAll(testDirs.TestRoot); err != nil {
@@ -186,7 +192,8 @@ func handleGaudiDevices(templateFilePath string, testDirs helpers.TestDirsType, 
 	fmt.Printf("fake sysfs: %v\n", testDirs.SysfsRoot)
 	fmt.Printf("fake devfs: %v\n", testDirs.DevfsRoot)
 	fmt.Printf("fake CDI: %v\n", testDirs.CdiRoot)
-	return doCleanup(testDirs, cleanup)
+
+	return nil
 }
 
 func createNewTemplate(deviceType string) error {
@@ -211,6 +218,7 @@ func createNewTemplate(deviceType string) error {
 				Driver:     "i915",
 				MaxVFs:     8,
 				VFProfile:  "",
+				PCIRoot:    "01",
 			},
 			"card1": {
 				UID:        "0000-04-00-1-0xe20b",
@@ -225,6 +233,7 @@ func createNewTemplate(deviceType string) error {
 				MaxVFs:     0,
 				ParentUID:  "0000-04-00-0-0xe20b",
 				VFProfile:  "",
+				PCIRoot:    "02",
 			},
 		}
 		templateText, err = json.MarshalIndent(templateData, "", "  ")
@@ -239,6 +248,7 @@ func createNewTemplate(deviceType string) error {
 				Model:      "0x1020",
 				DeviceIdx:  0,
 				ModuleIdx:  0,
+				PCIRoot:    "01",
 			},
 			"accel1": {
 				UID:        "0000-b0-00-0-0x1020",
@@ -246,6 +256,7 @@ func createNewTemplate(deviceType string) error {
 				Model:      "0x1020",
 				DeviceIdx:  1,
 				ModuleIdx:  1,
+				PCIRoot:    "02",
 			},
 		}
 		templateText, err = json.MarshalIndent(templateData, "", "  ")
@@ -262,8 +273,19 @@ func createNewTemplate(deviceType string) error {
 	return nil
 }
 
-func doCleanup(testDirs helpers.TestDirsType, cleanup bool) error {
-	if !cleanup {
+func printAndWaitForCleanup(testDirs helpers.TestDirsType, doPrint, doCleanup bool) error {
+	if doPrint {
+		fmt.Println("Resulting file-system tree:")
+		if err := filepath.Walk(testDirs.TestRoot, func(name string, info os.FileInfo, err error) error {
+			fmt.Println(strings.Replace(name, testDirs.TestRoot, "", 1))
+			return nil
+		}); err != nil {
+			// Cleanup is still needed, do not quit on error here.
+			fmt.Printf("error walking file-system tree: %v\n", err)
+		}
+	}
+
+	if !doCleanup {
 		return nil
 	}
 

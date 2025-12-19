@@ -18,7 +18,7 @@ func printPFDevice(pfdev *device.PFDevice) {
 	fmt.Printf("Max VFs:   %d\n", pfdev.TotalVFs)
 
 	for _, vfdev := range pfdev.AvailableDevices {
-		fmt.Printf("\tVF UID %s: device %s, device node %s, IOMMU %s, driver %s\n", vfdev.UID(), vfdev.PCIDevice(), vfdev.DeviceNode(), vfdev.Iommu(), vfdev.Driver())
+		fmt.Printf("\tVF UID %s: device %s, device node %s, IOMMU %s, driver %s\n", vfdev.UID(), vfdev.PCIDevice(), vfdev.DeviceNode(), vfdev.VFIommu, vfdev.Driver())
 	}
 }
 

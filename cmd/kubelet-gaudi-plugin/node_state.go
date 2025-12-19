@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 	"time"
 
 	resourcev1 "k8s.io/api/resource/v1"
@@ -37,9 +38,11 @@ import (
 
 type nodeState struct {
 	*helpers.NodeState
+	gaudiHookPath string
+	gaudiNetPath  string
 }
 
-func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimsFilePath string, nodeName string) (*nodeState, error) {
+func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot, preparedClaimsFilePath, nodeName, gaudiHookPath, gaudiNetPath string) (*nodeState, error) {
 	for ddev := range detectedDevices {
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
@@ -52,7 +55,7 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 	cdiCache := cdiapi.GetDefaultCache()
 
 	// syncDetectedDevicesWithRegistry overrides uid in detecteddevices from existing cdi spec
-	if err := cdihelpers.SyncDetectedDevicesWithRegistry(cdiCache, detectedDevices, true); err != nil {
+	if err := cdihelpers.AddDetectedDevicesToCDIRegistry(cdiCache, detectedDevices, true); err != nil {
 		return nil, fmt.Errorf("unable to sync detected devices to CDI registry: %v", err)
 	}
 
@@ -80,14 +83,9 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 			PreparedClaimsFilePath: preparedClaimsFilePath,
 			NodeName:               nodeName,
 		},
+		gaudiHookPath: gaudiHookPath,
+		gaudiNetPath:  gaudiNetPath,
 	}
-	/*
-		klog.V(5).Info("Syncing allocatable devices")
-		err = state.syncPreparedDevicesFromFile(clientset, preparedClaims)
-		if err != nil {
-			return nil, fmt.Errorf("unable to sync allocated devices from GaudiAllocationState: %v", err)
-		}
-	*/
 
 	allocatableDevices, ok := state.Allocatable.(map[string]*device.DeviceInfo)
 	if !ok {
@@ -137,11 +135,11 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 
 // cdiHabanaEnvVar ensures there is a CDI device with name == claimUID, that has
 // only env vars for Habana Runtime, without device nodes.
-func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string) error {
+func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string, visibleModules string, hlVisibleDevices string) error {
 	cdidev := s.CdiCache.GetDevice(claimUID)
 	if cdidev != nil { // overwrite the contents
 		cdidev.ContainerEdits = cdiSpecs.ContainerEdits{
-			Env: []string{visibleDevices},
+			Env: []string{visibleDevices, visibleModules, hlVisibleDevices},
 		}
 
 		// Save into the same spec where the device was found.
@@ -158,49 +156,16 @@ func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string) erro
 	newDevice := cdiSpecs.Device{
 		Name: claimUID,
 		ContainerEdits: cdiSpecs.ContainerEdits{
-			Env: []string{visibleDevices},
+			Env: []string{visibleDevices, visibleModules, hlVisibleDevices},
 		},
 	}
 
-	if err := cdihelpers.AddDeviceToAnySpec(s.CdiCache, device.CDIVendor, newDevice); err != nil {
+	if err := cdihelpers.NewBlankDevice(s.CdiCache, newDevice, s.gaudiHookPath, s.gaudiNetPath); err != nil {
 		return fmt.Errorf("could not add CDI device into CDI registry: %v", err)
 	}
 
 	return nil
 }
-
-/*
-func (s *nodeState) syncPreparedDevicesFromFile(preparedClaims ClaimPreparations) error {
-	klog.V(5).Infof("Syncing %d Prepared allocations from GaudiAllocationState to internal state", len(preparedClaims))
-
-	if s.prepared == nil {
-		s.prepared = make(ClaimPreparations)
-	}
-
-	for claimuid, preparedDevices := range preparedClaims {
-		skipPreparedClaim := false
-		prepared := []*device.DeviceInfo{}
-		for _, preparedDevice := range preparedDevices {
-			klog.V(5).Infof("claim %v had device %+v", claimuid, preparedDevice)
-
-			if _, exists := s.allocatable[preparedDevice.UID]; !exists {
-				klog.Errorf("prepared device %v no longer available for claim %v, dropping claim preparation", preparedDevice.UID, claimuid)
-				skipPreparedClaim = true
-				break
-			}
-
-			newdevice := s.allocatable[preparedDevice.UID].DeepCopy()
-			prepared = append(prepared, newdevice)
-		}
-
-		if !skipPreparedClaim {
-			s.prepared[claimuid] = prepared
-		}
-	}
-
-	return nil
-}
-*/
 
 func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim) error {
 	// To prevent concurrent writing of prepared claims file and potential data loss.
@@ -229,8 +194,9 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 
 func (s *nodeState) prepareAllocatedDevices(ctx context.Context, claim *resourcev1.ResourceClaim) (allocatedDevices kubeletplugin.PrepareResult, err error) {
 	allocatedDevices = kubeletplugin.PrepareResult{}
-	visibleDevices := device.VisibleDevicesEnvVarName + "="
-
+	visibleDeviceIndices := []string{}
+	visibleModuleIndices := []string{}
+	hlVisibleDevicePaths := []string{}
 	for _, allocatedDevice := range claim.Status.Allocation.Devices.Results {
 		// ATM the only pool is cluster node's pool: all devices on current node.
 		if allocatedDevice.Driver != device.DriverName || allocatedDevice.Pool != s.NodeName {
@@ -253,14 +219,17 @@ func (s *nodeState) prepareAllocatedDevices(ctx context.Context, claim *resource
 		}
 		allocatedDevices.Devices = append(allocatedDevices.Devices, newDevice)
 
-		if len(allocatedDevices.Devices) > 1 {
-			visibleDevices += ","
-		}
-		visibleDevices += fmt.Sprintf("%v", allocatableDevice.DeviceIdx)
+		visibleDeviceIndices = append(visibleDeviceIndices, fmt.Sprintf("%d", allocatableDevice.DeviceIdx))
+		visibleModuleIndices = append(visibleModuleIndices, fmt.Sprintf("%d", allocatableDevice.ModuleIdx))
+		hlVisibleDevicePaths = append(hlVisibleDevicePaths, fmt.Sprintf("/dev/accel/accel%d", allocatableDevice.DeviceIdx))
 	}
 
 	if len(allocatedDevices.Devices) > 0 {
-		if err := s.cdiHabanaEnvVar(string(claim.UID), visibleDevices); err != nil {
+		visibleDevicesEnvVar := fmt.Sprintf("%s=%s", device.VisibleDevicesEnvVarName, strings.Join(visibleDeviceIndices, ","))
+		visibleModulesEnvVar := fmt.Sprintf("%s=%s", device.VisibleModulesEnvVarName, strings.Join(visibleModuleIndices, ","))
+		hlVisibleDevicesEnvVar := fmt.Sprintf("%s=%s", device.HLVisibleDevicesEnvVarName, strings.Join(hlVisibleDevicePaths, ","))
+
+		if err := s.cdiHabanaEnvVar(string(claim.UID), visibleDevicesEnvVar, visibleModulesEnvVar, hlVisibleDevicesEnvVar); err != nil {
 			return allocatedDevices, fmt.Errorf("failed to ensure Habana Runtime specific CDI device: %v", err)
 		}
 
