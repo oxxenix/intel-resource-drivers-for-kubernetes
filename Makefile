@@ -173,15 +173,25 @@ licenses: clean-licenses
 
 
 # linting targets for Go and other code
-.PHONY: lint format cilint vet shellcheck yamllint
+.PHONY: lint format cilint vet shellcheck yamllint lint-containerized
 
-lint: vendor format cilint vet klogformat shellcheck yamllint
+lint-containerized:
+	$(DOCKER) run \
+	-e http_proxy=$(http_proxy) \
+	-e https_proxy=$(https_proxy) \
+	-e no_proxy=$(no_proxy) \
+	--user $(shell id -u):$(shell id -g) \
+	-v "$(shell pwd)":/home/ubuntu/src:rw \
+	"$(TEST_IMAGE)" \
+	bash -c "cd src && make lint"
+
+lint: vendor cilint vet klogformat shellcheck yamllint
 
 format:
 	gofmt -w -s -l ./
 
 cilint:
-	golangci-lint --max-same-issues 0 --max-issues-per-linter 0 run --timeout 2m0s ./...
+	golangci-lint --max-same-issues 0 --max-issues-per-linter 0 run --timeout 4m0s ./...
 
 vet:
 	go vet $(PKG)/...
@@ -261,7 +271,7 @@ TEST_TARGET ?= test
 
 test-containerized:
 	$(DOCKER) run \
-	-it -e container=yes \
+	-e container=yes \
 	-e http_proxy=$(http_proxy) \
 	-e https_proxy=$(https_proxy) \
 	-e no_proxy=$(no_proxy) \
@@ -297,3 +307,9 @@ cdispecsgen-coverage.out: $(shell find cmd/cdi-specs-generator pkg/gpu pkg/gaudi
 .PHONY: %-coverage
 %-coverage: %-coverage.out
 	go tool cover -func=$@.out
+
+.PHONY: coverage-check
+coverage-check: coverage.out
+	.github/scripts/coverage_check.sh gpu-coverage 70
+	.github/scripts/coverage_check.sh gaudi-coverage 70
+	.github/scripts/coverage_check.sh qat-coverage 70
